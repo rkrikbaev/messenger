@@ -1,0 +1,12 @@
+.pytest*
+.vscode
+app/__pycache__
+__pycache__
+app/logs
+.env
+python.idea/
+.vscode
+.venv
+*.tar
+**/test/mlruns*
+samples/
