@@ -10,3 +10,4 @@ python.idea/
 *.tar
 **/test/mlruns*
 samples/
+*.csv
