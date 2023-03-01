@@ -28,25 +28,25 @@ chrome_options.experimental_options["prefs"] = chrome_prefs
 
 def login(url, password, login)->None:
     
-    # driver.get(url)
-
+    driver.get(url)
+    ###
     # test on github.com
-    login = driver.find_element(By.ID, "login_field")
-    password = driver.find_element(By.ID, "password")
+    #login = driver.find_element(By.ID, "login_field")
+    #password = driver.find_element(By.ID, "password")
 
-    password.send_keys("Zeinet8sse")
-    login.send_keys("rkrikbaev")
+    #password.send_keys("Zeinet8sse")
+    #login.send_keys("rkrikbaev")
 
-    driver.find_element(By.NAME, "commit").click()
+    #driver.find_element(By.NAME, "commit").click()
     ###
     
-    # password = driver.find_element(By.ID, "gwt-debug-userPasswordTextBox")
-    # login = driver.find_element(By.ID, "gwt-debug-userNameTextBox")
+    password = driver.find_element(By.ID, "gwt-debug-userPasswordTextBox")
+    login = driver.find_element(By.ID, "gwt-debug-userNameTextBox")
     
-    # password.send_keys("admin")
-    # login.send_keys("administrator")
+    password.send_keys("admin")
+    login.send_keys("administrator")
 
-    # driver.find_element(By.ID, "gwt-debug-signInButton").click()
+    driver.find_element(By.ID, "gwt-debug-signInButton").click()
     
     return True
 
@@ -103,12 +103,12 @@ if __name__ == "__main__":
     list_of_objects = ["gwt-debug-tankItem1", "gwt-debug-tankItem2"]
 
     # uncomment to test    
-    url_data = "http://127.0.0.1:5500/samples/Veeder-Root%20Web%20Interface/Veeder-Root%20Web%20Interface.html"
+    # url_data = "http://127.0.0.1:5500/samples/Veeder-Root%20Web%20Interface/Veeder-Root%20Web%20Interface.html"
 
     driver = webdriver.Chrome(options=chrome_options)
     
-    # login_passed = login(url_login, password='administrator', login='admin')
-    login_passed=1
+    login_passed = login(url_login, password='administrator', login='admin')
+    # login_passed=1
     if login_passed:
 
         driver.get(url=url_data)
