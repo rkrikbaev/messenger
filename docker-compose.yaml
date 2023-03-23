@@ -6,7 +6,7 @@ services:
     build: 
       context: modbus
       dockerfile: Dockerfile
-    image: rkrikbaev/modus-slave:latest
+    image: rkrikbaev/modbus-slave:latest
     container_name: modbus-slave
     stdin_open: true
     tty: true
@@ -20,10 +20,7 @@ services:
 
   graber:
     restart: always
-    build: 
-      context: graber
-      dockerfile: Dockerfile
-    image: rkrikbaev/modus-slave:latest
+    image: rkrikbaev/modbus-slave:latest
     container_name: web-graber
     stdin_open: true
     tty: true
