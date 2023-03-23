@@ -1,0 +1,41 @@
+version: "3"
+services:
+  
+  modbus:
+    restart: always
+    build: 
+      context: modbus
+      dockerfile: Dockerfile
+    image: rkrikbaev/modus-slave:latest
+    container_name: modbus-slave
+    stdin_open: true
+    tty: true
+    ports:
+      - 5020:5020
+    volumes:
+      - ./parser/logdata:/app/logdata
+    command: python modbus_master.py
+    depends_on:
+      - redis
+
+  graber:
+    restart: always
+    build: 
+      context: graber
+      dockerfile: Dockerfile
+    image: rkrikbaev/modus-slave:latest
+    container_name: web-graber
+    stdin_open: true
+    tty: true
+    ports:
+      - 5020:5020
+    volumes:
+      - ./parser/logdata:/app/logdata
+    command: python data_graber.py
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:6-alpine
+    container_name: redis
+    restart: always

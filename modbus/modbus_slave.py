@@ -6,6 +6,7 @@ from time import sleep
 from random import uniform
 import argparse
 import csv
+import pdb
 
 list_of_objects = ["gwt-debug-tankItem1", "gwt-debug-tankItem2"]
         
@@ -30,12 +31,12 @@ if __name__ == "__main__":
     # parse args
     parser = argparse.ArgumentParser()
     parser.add_argument('-H', '--host', type=str, default='192.168.1.248', help='Host (default: localhost)')
-    parser.add_argument('-p', '--port', type=int, default=5020, help='TCP port (default: 11502)')
+    parser.add_argument('-p', '--port', type=int, default=5020, help='TCP port (default: 5020)')
     args = parser.parse_args()
     
     # Create an instance of ModbusServer
     server = ModbusServer(host=args.host, port=args.port, no_block=True)
-
+    pdb.set_trace()
     try:
         print("Server start...")
         server.start()
