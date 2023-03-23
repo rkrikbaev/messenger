@@ -8,7 +8,7 @@
 from pyModbusTCP.client import ModbusClient
 import time
 
-SERVER_HOST = "192.168.1.248"
+SERVER_HOST = "127.0.0.1"
 SERVER_PORT = 5020
 c = ModbusClient(host=SERVER_HOST, port=SERVER_PORT, unit_id=1)
 
