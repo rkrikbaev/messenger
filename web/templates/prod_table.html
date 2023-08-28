@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <div class="horizontal-container">
+    <label for="select-table">Выбрать:</label>
+    <select id="select-table">
+      <option value="ayraqty">Айракты</option>
+      <option value="zhar">Жаркум</option>
+      <option value="aman">Амангельды</option>
+    </select>
+    <label for="start-date">От:</label>
+    <input type="date" id="start-date" name="start-date">
+    <label for="end-date">До:</label>
+    <input type="date" id="end-date" name="end-date">
+    <button id="apply-filter">Apply</button>
+  </div>  
+  <div style="margin-bottom: 20px;"></div>
+  <table id="data" class="table table-striped">
+    <thead>
+      <tr>
+        <th>Дата</th>
+        <th>Счетчик вчера</th>
+        <th>Счетчик</th>
+        <th>Отгрузка</th>
+        <th>Запас А</th>
+        <th>Запас В</th>
+      </tr>
+    </thead>
+    <tbody>
+    </tbody>
+  </table>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    $(document).ready(function () {
+      $('#select-table').on('change', function () {
+        updateData();
+      });
+
+      $('#apply-filter').on('click', function () {
+        updateData();
+      });
+
+      function updateData() {
+        var selectedTable = $('#select-table').val();
+        var startDate = $('#start-date').val();
+        var endDate = $('#end-date').val();
+
+        $('#data').DataTable({
+          destroy: true,
+          ajax: `/api/data/${selectedTable}?start_date=${startDate}&end_date=${endDate}`,
+          columns: [
+            { data: 'date' },
+            { data: 'dev1_massflowbegin' },
+            { data: 'dev1_massflowend' },
+            { data: 'dev1_mass' },
+            { data: 'dev2_mass' },
+            { data: 'dev3_mass' },
+          ],
+        });
+      }
+
+      // Initialize DataTable with the default selected table
+      updateData();
+    });
+  </script>
+{% endblock %}

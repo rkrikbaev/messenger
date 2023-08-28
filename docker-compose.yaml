@@ -15,8 +15,8 @@ services:
     volumes:
       - ./parser/logdata:/app/logdata
     command: python modbus_master.py
-    depends_on:
-      - redis
+    # depends_on:
+    #   - redis
 
   graber:
     restart: always
@@ -28,11 +28,12 @@ services:
       - 5020:5020
     volumes:
       - ./parser/logdata:/app/logdata
+      - ./parser/graber:/app
     command: python data_graber.py
-    depends_on:
-      - redis
+  #   depends_on:
+  #     - redis
 
-  redis:
-    image: redis:6-alpine
-    container_name: redis
-    restart: always
+  # redis:
+  #   image: redis:6-alpine
+  #   container_name: redis
+  #   restart: always
