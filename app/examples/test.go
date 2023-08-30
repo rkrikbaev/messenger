@@ -3,25 +3,18 @@ package main
 import (
 	"fmt"
 	"encoding/csv"
+	"log"
 	"os"
 	"time"
-	"net/smtp"
-	//"strings"
-	"io"
-	//"io/ioutil"
-	"strconv"
-	"log"
-	//"bytes"
-	//"net/http"
 
 	"github.com/gokalkan/gokalkan"
 	"github.com/google/uuid"
 )
 
 
-//Расходомер Амангельды    407001
-//Расходомер Айракты   407002
-//Расходомер Жаркум   407003
+//СИКН Амангельды    407001
+//СИКН Айракты   407002
+//СИКН Жаркум   407003
 //
 //Резервуар Амангельды - 1   407004
 //Резервуар Амангельды - 2   407005
@@ -106,91 +99,20 @@ var (
 	updatedAirakty = false
 	updatedJarkum = false
 
-	//pathToFileAmangeldi = "Amangeldy/"
-	//pathToFileAirakty = "Ayraqty/"
-	//pathToFileZharkum = "Zharkum/"
-	pathToFileAmangeldi = "/app/csv_data/amangeldy/"
-	pathToFileAirakty = "/app/csv_data/ayraqty/"
-	pathToFileZharkum = "/app/csv_data/zharkum/"
+	pathToFileAmangeldi = "data1/"
+	pathToFileAirakty = "data2/"
+	pathToFileZharkum = "data3/"
 
 	timeFormatForEvent = "2006-01-02T15:04:05.000-07:00"
+	timeFormatForMessage = "2023-06-06T13:45:21.024Z"
 	serviceId = "ISUN_Service2"
 	senderId = "amangeldygas"
-	senderPassword = "Amangeldy2023"
-
-	mailSender   = "amangeldi.isun@mail.ru"
-	appPassword  = "h9UcQwTcdK75DVdpyEHY"
-	mailReceiver = "ae.aubakirov@gmail.com"
-
-	smtpHost = "smtp.mail.ru"
-	smtpPort = 587
-
-	logFileName = "log.txt"
-
-	DATE_STR_FILE = os.Getenv("DATE") //"13.07.2024"
-	
+	senderPassword = "Qazaqstan2023"
 )
 
 
 
 func main() {
-	res := runMain()
-	fmt.Println(res)
-}
-
-func validateMassResult() string {
-	if rashod407001.MassFlowBegin == "" || rashod407001.MassFlowEnd == "" ||
-		rashod407002.MassFlowBegin == "" || rashod407002.MassFlowEnd == "" ||
-		rashod407003.MassFlowBegin == "" || rashod407003.MassFlowEnd == "" {
-		return "ERROR: one of the mass values is empty"
-	}
-
-	massBegin1, err := strconv.ParseFloat(rashod407001.MassFlowBegin, 64)
-	if err != nil {
-		return "ERROR: rashodomer1 massBegin is not a number"
-	}
-	massEnd1, err := strconv.ParseFloat(rashod407001.MassFlowEnd, 64)
-	if err != nil {
-		return "ERROR: rashodomer1 massEnd is not a number"
-	}
-	mass1, err := strconv.ParseFloat(rashod407001.Mass, 64)
-	if err != nil {
-		return "ERROR: rashodomer1 mass is not a number"
-	}
-	massBegin2, err := strconv.ParseFloat(rashod407002.MassFlowBegin, 64)
-	if err != nil {
-		return "ERROR: rashodomer2 massBegin is not a number"
-	}
-	massEnd2, err := strconv.ParseFloat(rashod407002.MassFlowEnd, 64)
-	if err != nil {
-		return "ERROR: rashodomer2 massEnd is not a number"
-	}
-	mass2, err := strconv.ParseFloat(rashod407002.Mass, 64)
-	if err != nil {
-		return "ERROR: rashodomer2 mass is not a number"
-	}
-	massBegin3, err := strconv.ParseFloat(rashod407003.MassFlowBegin, 64)
-	if err != nil {
-		return "ERROR: rashodomer3 massBegin is not a number"
-	}
-	massEnd3, err := strconv.ParseFloat(rashod407003.MassFlowEnd, 64)
-	if err != nil {
-		return "ERROR: rashodomer3 massEnd is not a number"
-	}
-	mass3, err := strconv.ParseFloat(rashod407003.Mass, 64)
-	if err != nil {
-		return "ERROR: rashodomer3 mass is not a number"
-	}
-
-	if (massEnd1 - massBegin1) != mass1 || (massEnd2 - massBegin2) != mass2 || (massEnd3 - massBegin3) != mass3 {
-		return "ERROR: mass values are not equal"
-	}
-	return "OK"
-}
-
-//----------------------------- // ------------------------------------------ //
-
-func runMain() string {
 
 	// 1. read file of results sent
 	// if file is empty, then send all data and create file with last date
@@ -201,6 +123,7 @@ func runMain() string {
 	// 3. update file with last date
 	// 4. repeat after 1 hour
 
+
 	// для теста
 	opts := gokalkan.OptsTest
 
@@ -209,77 +132,35 @@ func runMain() string {
 
 	cli, err := gokalkan.NewClient(opts...)
 	if err != nil {
-		errMsg := fmt.Sprintf("ERROR, new kalkan client create error: %s", err)
-		logging(errMsg)
-		//sendMail( mailReceiver, ERROR_WITH_KALKAN_MAIL_SUBJECT, errMsg)
-		return errMsg
+		log.Fatal("new kalkan client create error", err)
 	}
 	// Обязательно закрывайте клиент, иначе приведет к утечкам ресурсов
 	defer cli.Close()
 
 	xmlToSign := prepareXmlToSign()
 
-
-	fmt.Println("prepareXmlToSign: %s", xmlToSign) // need to delete
+	if xmlToSign == "ERROR" {
+		fmt.Println("prepareXmlToSign: ERROR")
+		// need to send notification about error to email
+		return
+	}
+	fmt.Println("prepareXmlToSign: %s", xmlToSign)
 
 	// Подгружаем хранилище с паролем
 	err = cli.LoadKeyStore(certPath, certPassword)
 	if err != nil {
-		errMsg1 := fmt.Sprintf("ERROR, load key store error: %s", err)
-		return errMsg1
+		log.Fatal("load key store error", err)
 	}
 
 	randomUUID := generateRandomString()
 	signedXML, err := cli.SignWSSE(xmlToSign, fmt.Sprintf("id-%s", randomUUID))
 	 //signedXML, err := cli.SignWSSE(" <ns2:SendMessage xmlns:ns2=\"http://bip.bee.kz/SyncChannel/v10/Types\"> <request> <requestInfo> <messageId>214b4374-4486-456e-834e-ae06a607a70c</messageId> <serviceId>ISUN_Service2</serviceId> <messageDate>2023-06-06T13:45:21.024Z</messageDate> <sender> <senderId>amangeldygas</senderId> <password>Qazaqstan2023</password> </sender> </requestInfo> <requestData> <data xmlns:cs=\"http://message.persistence.interactive.nat\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:type=\"cs:Request\"> <events> <id>407001</id> <datetime>2023-06-07T00:00:00.000+06:00</datetime> <deviceTypeId>2</deviceTypeId> <operationTypeId>3</operationTypeId> <deviceNameId>1</deviceNameId> <productTypeId>1</productTypeId> <temperature>10.79</temperature> <density>52.5</density> <volume>12.2</volume> <pipelineId>3</pipelineId> <massflowbegin>4.10</massflowbegin> <massflowend>8.10</massflowend> <mass>4.0</mass> </events> <events> <id>407002</id> <datetime>2023-06-07T00:00:00.000+06:00</datetime> <deviceTypeId>2</deviceTypeId> <operationTypeId>3</operationTypeId> <deviceNameId>1</deviceNameId> <productTypeId>1</productTypeId> <temperature>10.79</temperature> <density>52.5</density> <volume>12.2</volume> <pipelineId>3</pipelineId> <massflowbegin>4.10</massflowbegin> <massflowend>4.10</massflowend> <mass>0.0</mass> </events> <events> <id>407003</id> <datetime>2023-06-07T00:00:00.000+06:00</datetime> <deviceTypeId>2</deviceTypeId> <operationTypeId>3</operationTypeId> <deviceNameId>1</deviceNameId> <productTypeId>1</productTypeId> <temperature>10.79</temperature> <density>52.5</density> <volume>12.2</volume> <pipelineId>3</pipelineId> <massflowbegin>4.10</massflowbegin> <massflowend>5.25</massflowend> <mass>1.15</mass> </events> <events> <id>407004</id> <datetime>2023-06-07T00:00:00.000+06:00</datetime> <deviceTypeId>1</deviceTypeId> <operationTypeId>7</operationTypeId> <deviceNameId>2</deviceNameId> <productTypeId>1</productTypeId> <density>52.5</density> <tankLevel>12.5</tankLevel> <temperature>12.79</temperature> <volume>12.5</volume> <mass>0.0</mass> </events> <events> <id>407005</id> <datetime>2023-06-07T00:00:00.000+06:00</datetime> <deviceTypeId>1</deviceTypeId> <operationTypeId>7</operationTypeId> <deviceNameId>2</deviceNameId> <productTypeId>1</productTypeId> <density>52.5</density> <tankLevel>12.5</tankLevel> <temperature>12.79</temperature> <volume>12.5</volume> <mass>0.0</mass> </events> <events> <id>407006</id> <datetime>2023-06-07T00:00:00.000+06:00</datetime> <deviceTypeId>1</deviceTypeId> <operationTypeId>7</operationTypeId> <deviceNameId>2</deviceNameId> <productTypeId>1</productTypeId> <density>52.5</density> <tankLevel>12.5</tankLevel> <temperature>12.79</temperature> <volume>12.5</volume> <mass>0.0</mass> </events> <events> <id>407007</id> <datetime>2023-06-07T00:00:00.000+06:00</datetime> <deviceTypeId>1</deviceTypeId> <operationTypeId>7</operationTypeId> <deviceNameId>2</deviceNameId> <productTypeId>1</productTypeId> <density>52.5</density> <tankLevel>12.5</tankLevel> <temperature>12.79</temperature> <volume>12.5</volume> <mass>0.0</mass> </events> <events> <id>407008</id> <datetime>2023-06-07T00:00:00.000+06:00</datetime> <deviceTypeId>1</deviceTypeId> <operationTypeId>7</operationTypeId> <deviceNameId>2</deviceNameId> <productTypeId>1</productTypeId> <density>52.5</density> <tankLevel>12.5</tankLevel> <temperature>12.79</temperature> <volume>12.5</volume> <mass>0.0</mass> </events> <events> <id>407009</id> <datetime>2023-06-07T00:00:00.000+06:00</datetime> <deviceTypeId>1</deviceTypeId> <operationTypeId>7</operationTypeId> <deviceNameId>2</deviceNameId> <productTypeId>1</productTypeId> <density>52.5</density> <tankLevel>12.5</tankLevel> <temperature>12.79</temperature> <volume>12.5</volume> <mass>0.0</mass> </events> </data> </requestData> </request> </ns2:SendMessage>", "id-31fc1a20-7490-4b66-948d-5b61483dd662")
-	 if err != nil {
-		 errMsg2 := fmt.Sprintf("Error on signWSSE by KALKAN (Ошибка при подписании XML): %s", err)
-		 return errMsg2
-	 }
 
-	 fmt.Println("--------------------- Подписанный XML в формате WSSE ------------- \n", signedXML)
-	 save_to_file(signedXML)
-	
-	 return "OK"
+   fmt.Println("--------------------- Подписанный XML в формате WSSE ------------- \n", signedXML)
+   fmt.Println("Ошибка", err)
 }
 
-func save_to_file(data string) {
 
-	// Read the environment variable
-	outputDir := os.Getenv("DIR")
-
-	// If the environment variable is not set, use a default value
-	if outputDir == "" {
-		outputDir = "."
-	}
-
-	if DATE_STR_FILE == "" {
-		log.Fatal("OUTPUT_DIR environment variable is not set")
-	}
-
-	// Generate a timestamp
-	//timestamp := time.Now().Format("20060102_150405")
-
-	// Construct the filename with the timestamp
-	filename := fmt.Sprintf("%s/output_%s.xml", outputDir, DATE_STR_FILE)
-
-	// Open the file for writing
-	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer file.Close()
-
-	// Write data to the file
-	_, err = file.WriteString(data)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Println("Data saved to file:", filename)
-}
-
-//----------------------------- // ------------------------------------------ //
 //----------------------------- // ------------------------------------------ //
 
 func prepareXmlToSign() string {
@@ -294,20 +175,9 @@ func prepareXmlToSign() string {
 	eventsStrAirakty := getEventsXmlAirakty()
 	eventsStrZharkum := getEventsXmlZharkum()
 
-	if !updatedAmangeldi {
-		errMsg := fmt.Sprintf("ERROR : need to check for update data for Amangeldi : %s", pathToFileAmangeldi)
-		logging(errMsg)
-		return errMsg
-	}
-	if !updatedAirakty {
-		errMsg1 := fmt.Sprintf("ERROR : need to check for update data for Airakty : %s", pathToFileAirakty)
-		logging(errMsg1)
-		return errMsg1
-	}
-	if !updatedJarkum {
-		errMsg2 := fmt.Sprintf("ERROR : need to check for update data for Zharkum : %s", pathToFileZharkum)
-		logging(errMsg2)
-		return errMsg2
+	if !updatedAmangeldi || !updatedAirakty && !updatedJarkum {
+		// fmt.Println("ALL is up good: ", eventsStrAmangeldi + eventsStrAirakty + eventsStrZharkum)
+		return "ERROR"
 	}
 
 
@@ -333,29 +203,13 @@ func prepareXmlToSign() string {
 
 //----------------------------- // ------------------------------------------ //
 
-func getEventTime() (string, error) {
-
-	DATE_STR_FILE := os.Getenv("DATE")
-	layout := "02.01.2006"
-	date, err := time.Parse(layout,DATE_STR_FILE)
-	if err != nil {
-		fmt.Println("Error parsing date:", err)
-		return "", err
-	}
-	currentTime := time.Date(date.Year(), date.Month(), date.Day(), 13, 0, 0, 0, date.Location())
-	eventTimeString:= currentTime.Format(timeFormatForEvent)
-	fmt.Println("Event time:", eventTimeString)
-	return eventTimeString, nil
-}
-
-
 func getDataAmangeldi() {
 	// here we will update data of rashod407001, rezer407004, rezer407005
 	fileName := pathToFileAmangeldi + generateFileName()
 	// Read the CSV file
 	file, err := os.Open(fileName)
 	if err != nil {
-		logging(fmt.Sprintf("Error opening file: %s, err: %s", fileName, err))
+		fmt.Println("Error opening file:", err)
 		return
 	}
 	defer file.Close()
@@ -366,31 +220,19 @@ func getDataAmangeldi() {
 	// Read all the records
 	records, err := reader.ReadAll()
 	if err != nil {
-		logging(fmt.Sprintf("Error reading CSV file: %s, err: %s", fileName, err))
+		fmt.Println("Error reading CSV file:", err)
 		return
 	}
 
-//	DATE_STR_FILE := os.Getenv("DATE")
-//	layout := "2006.01.02"
-//	date, err := time.Parse(layout,DATE_STR_FILE)
-//	if err != nil {
-//		fmt.Println("Error parsing date:", err)
-//		return
-//	}
-//	currentTime := time.Date(date.Year(), date.Month(), date.Day(), 13, 0, 0, 0, date.Location())
-//	localTimeString := currentTime.Format(timeFormatForEvent)
-
-	// get time of event
-	eventTime, err := getEventTime()
-
-	rashod407001.DateTime = eventTime
-	rezer407004.DateTime = eventTime
-	rezer407005.DateTime = eventTime
+	currentTime := time.Now()
+	localTimeString := currentTime.Format(timeFormatForEvent)
+	rashod407001.DateTime = localTimeString
+	rezer407004.DateTime = localTimeString
+	rezer407005.DateTime = localTimeString
 
 	for _, row := range records {
 		keyName := row[0]
 		val := row[1]
-		logging("keyName :" + keyName + ", val:" + val)
 		if keyName == "dev1_density" {
 			rashod407001.Density = val
 		}
@@ -422,8 +264,8 @@ func getDataAmangeldi() {
 		if (keyName == "dev2_tankLevel") {
 			rezer407004.TankLevel = val
 		}
-		if (keyName == "dev2_mass") {
-			rezer407004.Mass = val
+		if (keyName == "dev2_tankLevel") {
+			rezer407004.TankLevel = val
 		}
 
 		if (keyName == "dev3_density") {
@@ -502,7 +344,7 @@ func getDataAirakty() {
 	// Read the CSV file
 	file, err := os.Open(fileName)
 	if err != nil {
-		logging(fmt.Sprintf("Error opening file: %s, err: %s", fileName, err))
+		fmt.Println("Error opening file:", err)
 		return
 	}
 	defer file.Close()
@@ -513,19 +355,15 @@ func getDataAirakty() {
 	// Read all the records
 	records, err := reader.ReadAll()
 	if err != nil {
-		logging(fmt.Sprintf("Error reading CSV file: %s, err: %s", fileName, err))
+		fmt.Println("Error reading CSV file:", err)
 		return
 	}
 
-	//currentTime := time.Now()
-	//localTimeString := currentTime.Format(timeFormatForEvent)
-
-	// get time of event
-	eventTime, err := getEventTime()
-
-	rashod407002.DateTime = eventTime 
-	rezer407006.DateTime = eventTime 
-	rezer407007.DateTime = eventTime
+	currentTime := time.Now()
+	localTimeString := currentTime.Format(timeFormatForEvent)
+	rashod407002.DateTime = localTimeString
+	rezer407006.DateTime = localTimeString
+	rezer407007.DateTime = localTimeString
 
 	for _, row := range records {
 		keyName := row[0]
@@ -641,7 +479,7 @@ func getDataZharkum() {
 	// Read the CSV file
 	file, err := os.Open(fileName)
 	if err != nil {
-		logging(fmt.Sprintf("Error opening file: %s, err: %s", fileName, err))
+		fmt.Println("Error opening file:", err)
 		return
 	}
 	defer file.Close()
@@ -652,22 +490,15 @@ func getDataZharkum() {
 	// Read all the records
 	records, err := reader.ReadAll()
 	if err != nil {
-		logging(fmt.Sprintf("Error reading CSV file: %s, err: %s", fileName, err))
+		fmt.Println("Error reading CSV file:", err)
 		return
 	}
 
-	//currentTime := time.Now()
-	//localTimeString := currentTime.Format(timeFormatForEvent)
-	//rashod407003.DateTime = localTimeString
-	//rezer407008.DateTime = localTimeString
-	//rezer407009.DateTime = localTimeString
-
-	// get time of event
-	eventTime, err := getEventTime()
-
-	rashod407003.DateTime = eventTime
-	rezer407008.DateTime = eventTime
-	rezer407009.DateTime = eventTime
+	currentTime := time.Now()
+	localTimeString := currentTime.Format(timeFormatForEvent)
+	rashod407003.DateTime = localTimeString
+	rezer407008.DateTime = localTimeString
+	rezer407009.DateTime = localTimeString
 
 	for _, row := range records {
 		keyName := row[0]
@@ -784,79 +615,84 @@ func generateRandomString() string {
 
 func generateFileName() string {
 	// Get the current date and time
-	//layout := "2006-01-02"
+	oneDayBefore := time.Now().AddDate(0, 0, -1)
+
 	// Format the date as "YYYY-M-D"
-	//date, _ := time.Parse(layout, DATE_STR_FILE)
+	date := oneDayBefore.Format("2006-1-2")
 
 	// Generate the file name
-	fileName := fmt.Sprintf("log_%s.csv", DATE_STR_FILE)
+	fileName := fmt.Sprintf("log_%s.csv", date)
 
 	return fileName
 }
 
-func sendMail(to string, subject string, body string) {
-	// Set up authentication information.
-
-	// Compose the email message
-	message := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\n\r\n%s", mailSender, to, subject, body)
-
-	// SMTP authentication setup
-	auth := smtp.PlainAuth("", mailSender, appPassword, smtpHost)
-
-	// Send the email using mail.ru SMTP
-	err := smtp.SendMail(fmt.Sprintf("%s:%d", smtpHost, smtpPort), auth, mailSender, []string{to}, []byte(message))
-	if err != nil {
-		logging(fmt.Sprintf("Error sending email: %s",err))
-		return
-	}
-
-	logging("Email sent successfully.")
-}
-
-func logging(text string) {
-	// Get the current date and time
-	now := time.Now()
-
-	// Format the date as "YYYY-M-D"
-	date := now.Format("2006-1-2")
-
-	// Format the time as "HH:MM:SS"
-	time := now.Format("15:04:05")
-
-	// Create the log text
-	logText := fmt.Sprintf("%s %s: %s \n", date, time, text)
-
-	// check for file exist if not create one
-	checkFileExistIfNotCreate(logFileName)
-
-	// Append the log text to the log file
-	file, err := os.OpenFile(logFileName, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+func readCSV(fileName string) {
+	// Open the CSV file
+	file, err := os.Open(fileName)
 	if err != nil {
 		fmt.Println("Error opening file:", err)
+		return
 	}
 	defer file.Close()
 
-	// Append text to the file
-	_, err = io.WriteString(file, logText)
+	// Create a new CSV reader
+	reader := csv.NewReader(file)
+
+	// Read all the records
+	records, err := reader.ReadAll()
 	if err != nil {
-		fmt.Println("Error writing to file:", err)
+		fmt.Println("Error reading CSV file:", err)
+		return
 	}
-}
-
-
-func checkFileExistIfNotCreate(filePath string) {
-	// check for file exist if not create one
-	// Check if the file exists
-	_, err := os.Stat(filePath)
-	if err != nil {
-		// File does not exist, create it
-		file, err := os.Create(filePath)
-		if err != nil {
-			fmt.Println("Error creating file:", err)
-			return
+	
+	for _, row := range records {
+		keyName := row[0]
+		val := row[1]
+		if keyName == "dev2_volume" {
+			fmt.Println("value of dev2_volume:", val)
 		}
-		defer file.Close()
 
-		fmt.Println("File created:", filePath)
 	}
+
 }
+
+//for {
+//// Read the last runtime date from the file
+//lastRunDateBytes, err := ioutil.ReadFile("lastrun.txt")
+//if err != nil {
+//fmt.Println("Error reading file:", err)
+//return
+//}
+//
+//// Parse the last runtime date
+//lastRunDate, err := time.Parse(time.RFC3339, string(lastRunDateBytes))
+//if err != nil {
+//fmt.Println("Error parsing last runtime date:", err)
+//return
+//}
+//
+//// Get the current date
+//currentDate := time.Now().UTC().Truncate(24 * time.Hour)
+//
+//// Check if the last runtime date is the same as the current date
+//if lastRunDate.Year() == currentDate.Year() && lastRunDate.Month() == currentDate.Month() && lastRunDate.Day() == currentDate.Day() {
+//// Wait until the next day
+//nextDay := currentDate.Add(24 * time.Hour)
+//waitDuration := nextDay.Sub(time.Now())
+//fmt.Println("Waiting until", nextDay.Format(time.RFC3339))
+//time.Sleep(waitDuration)
+//continue
+//}
+//
+//// Perform some task
+//fmt.Println("Running script...")
+//
+//// Get the current timestamp
+//timestamp := time.Now().Format(time.RFC3339)
+//
+//// Save the timestamp to the file
+//err = ioutil.WriteFile("lastrun.txt", []byte(timestamp), 0644)
+//if err != nil {
+//fmt.Println("Error saving timestamp:", err)
+//}
+//}
