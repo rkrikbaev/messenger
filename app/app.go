@@ -2,14 +2,17 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
+	// "context"
 	"database/sql"
 	"io"
 	"log"
 	"path/filepath"
+	"unicode"
 
 	// "database/sql"
 	"encoding/csv"
-	// "encoding/json"
+	"encoding/json"
 
 	"fmt"
 	// "io"
@@ -24,18 +27,27 @@ import (
 	"strings"
 	"time"
 
-	// "github.com/gokalkan/gokalkan"
+	"github.com/gokalkan/gokalkan"
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	_ "github.com/mattn/go-sqlite3"
 )
 
-type EventType interface {
-	processFile()
-}
+//СИКН Амангельды    407001
+//СИКН Айракты   407002
+//СИКН Жаркум   407003
+//
+//Резервуар Амангельды - 1   407004
+//Резервуар Амангельды - 2   407005
+//
+//Резервуар Айракты - 1   407006
+//Резервуар Айракты - 2   407007
+//
+//Резервуар Жаркум - 1   407008
+//Резервуар Жаркум - 2   407009
 
-type Document struct {
-	id int
+type Event struct {
+	Id int
 	Document string
 	EventDate string
 	CreatedAt string
@@ -43,97 +55,164 @@ type Document struct {
 	State string
 }
 
-type EventTypeFlow struct {
-	id string
-	datetime string
-	deviceTypeId string
-	operationTypeId string
-	deviceNameId string
-	productTypeId string
-	temperature string
-	density string
-	volume string
-	pipelineId string
-	massflowbegin string
-	massflowend string
-	mass string
-}
-
-type EventTypeLevel struct {
-	id string
-	datetime string
-	deviceTypeId string
-	operationTypeId string
-	deviceNameId string
-	productTypeId string
-	mass string
-	tankLevel string
-	volume string
-	temperature string
-	density string
-}
-
 const (
 	StateTable = "RESPONSE"
 	XMLDocumentTable = "DOCUMENTS"
 	CSVTimeFormat = "02.01.2006"
 	EventTimeFormat = "2006-01-02T15:04:05.000-07:00"
-	ip = "127.0.0.1"//"195.12.113.29"
-	port = "8080"
+	ip = "195.12.113.29"
+	port = "80"
 	ReportTable = "REPORT"
 	dbname = "app.db"
-)
+	jsonData = `[
+					{
+						"id": "407001",
+						"deviceTypeId": 2,
+						"operationTypeId": 3,
+						"deviceNameId": 1,
+						"productTypeId": 1,
+						"pipelineId": 3,
+						"temperature": 0,
+						"density": 0,
+						"volume": 0,
+						"massflowbegin": 0,
+						"massflowend": 0,
+						"mass": 0
+					},
+					{
+						"id": "407004",
+						"deviceTypeId": 1,
+						"operationTypeId": 7,
+						"deviceNameId": 2,
+						"productTypeId": 1,
+						"temperature": 0,
+						"density": 0,
+						"volume": 0,
+						"tenkLevel": 0,
+						"mass": 0
+					},
+					{
+						"id": "407005",
+						"deviceTypeId": 1,
+						"operationTypeId": 7,
+						"deviceNameId": 2,
+						"productTypeId": 1,
+						"temperature": 0,
+						"density": 0,
+						"volume": 0,
+						"tenkLevel": 0,
+						"mass": 0
+					},
+					{
+						"id": "407002",
+						"deviceTypeId": 2,
+						"operationTypeId": 3,
+						"deviceNameId": 1,
+						"productTypeId": 1,
+						"pipelineId": 3,
+						"temperature": 0,
+						"density": 0,
+						"volume": 0,
+						"massflowbegin": 0,
+						"massflowend": 0,
+						"mass": 0
+					},
+					{
+						"id": "407006",
+						"deviceTypeId": 1,
+						"operationTypeId": 7,
+						"deviceNameId": 2,
+						"productTypeId": 1,
+						"temperature": 0,
+						"density": 0,
+						"volume": 0,
+						"tenkLevel": 0,
+						"mass": 0
+					},
+					{
+						"id": "407007",
+						"deviceTypeId": 1,
+						"operationTypeId": 7,
+						"deviceNameId": 2,
+						"productTypeId": 1,
+						"temperature": 0,
+						"density": 0,
+						"volume": 0,
+						"tenkLevel": 0,
+						"mass": 0
+					},
+					{
+						"id": "407003",
+						"deviceTypeId": 2,
+						"operationTypeId": 3,
+						"deviceNameId": 1,
+						"productTypeId": 1,
+						"pipelineId": 3,
+						"temperature": 0,
+						"density": 0,
+						"volume": 0,
+						"massflowbegin": 0,
+						"massflowend": 0,
+						"mass": 0
+					},
+					{
+						"id": "407008",
+						"deviceTypeId": 1,
+						"operationTypeId": 7,
+						"deviceNameId": 2,
+						"productTypeId": 1,
+						"temperature": 0,
+						"density": 0,
+						"volume": 0,
+						"tenkLevel": 0,
+						"mass": 0
+					},
+					{
+						"id": "407009",
+						"deviceTypeId": 1,
+						"operationTypeId": 7,
+						"deviceNameId": 2,
+						"productTypeId": 1,
+						"temperature": 0,
+						"density": 0,
+						"volume": 0,
+						"tenkLevel": 0,
+						"mass": 0
+					}
+				]`
+		)
 
 var (
-	eventsMap map[string]interface{}
-	events = map[string]string{}
 	EventTime string
 	EventRecordDate time.Time
-	// filesSourcePath string
+	events []map[string]interface{}
 	FilesDirPath string
 	extension string
 	mailReceiver string
 	db     *sql.DB
-	allTabels = []string{"407001","407002","407003", "407004","407005","407006","407007","407008","407009"}
+	Events Event
+	// allevents = []string{"407001","407002","407003", "407004","407005","407006","407007","407008","407009"}
 	serviceId string
 	senderId string
 	senderPassword string
-
-	cwd string
+	Type1Events = []string{"407001","407002","407003"}
+	Type2Events = []string{"407004","407005","407006","407007","407008","407009"}
+	Type1Params = []string{"datetime","density","massflowbegin","massflowend","mass"}
+	Type2Params = []string{"datetime","density","volume","temperature","tankLevel","mass"}
+	cwd = ""
 	dbPath string
 	certPath string
 	certPassword string
 	randomUUID string
+	location *time.Location
 )
-
-func typeFlow(id string) *EventTypeFlow {
-	return &EventTypeFlow{
-		id: id,
-		deviceTypeId:       "2",	// Default value
-		operationTypeId: 	"3", 	// Default value
-		deviceNameId:    	"1",	// Default value
-		productTypeId:    	"1",	// Default value
-		pipelineId: 		"3",
-		}
-	}
-
-func typeLevel(id string) *EventTypeLevel {
-	return &EventTypeLevel{
-		id: id,
-		deviceTypeId:       "1",	// Default value
-		operationTypeId: 	"7", 	// Default value
-		deviceNameId:    	"2",	// Default value
-		productTypeId:    	"1",	// Default value
-		}
-	}
-
 
 func main() {
 	var err error
-	fmt.Printf("Start")
+	fmt.Println("Start")
 	cwd, _ = os.Getwd()
+	// cwd = "/Users/rustamkrikbayev/projects/parser/app"
 	dbPath = path.Join(cwd, "/db/", dbname)
-	
 	db, err = sql.Open("sqlite3", dbPath)
 	if err != nil {
 		log.Fatal(err)
@@ -142,7 +221,7 @@ func main() {
 	env := path.Join(cwd, "app.env")
 	err = godotenv.Load(env)
 	if err != nil {
-		fmt.Printf("error parse env file: ", env)
+		fmt.Println("error parse env file: ", env)
 	}
 	certPath = os.Getenv("certPath")
 	certPassword = os.Getenv("certPassword")
@@ -150,216 +229,177 @@ func main() {
 	senderId = os.Getenv("senderId")
 	senderPassword = os.Getenv("senderPassword")
 	mailReceiver = os.Getenv("mailReceiver")
-
-	eventsMap["407001"] = typeFlow("407001")
-	eventsMap["407002"] = typeFlow("407002")
-	eventsMap["407003"] = typeFlow("407003")
-	eventsMap["407004"] = typeLevel("407004")
-	eventsMap["407005"] = typeLevel("407005")
-	eventsMap["407006"] = typeLevel("407006")
-	eventsMap["407007"] = typeLevel("407007")
-	eventsMap["407008"] = typeLevel("407008")
-	eventsMap["407009"] = typeLevel("407009")
-
+	err = json.Unmarshal([]byte(jsonData), &events)
+	if err != nil {
+		fmt.Println("Error parsing JSON:", err)
+		return
+	}
+	location, err = time.LoadLocation("Asia/Almaty")
+	if err != nil {
+		fmt.Println("Ошибка загрузки часового пояса:", err)
+		return
+	}
 	run()
 }
 
 func run() {
-	TodayDatetime := time.Now()
+	var err error
 	for {
-		var err error
-		if TodayDatetime.After(EventRecordDate) {
-		filesSourcePath := path.Join(cwd, "/csv_data/")
-		err = LogDataFromFile(filesSourcePath)
+		
+		fmt.Println("LogDataFromFile")
+		err = LogDataFromFile(events)
 		if err != nil {
-			fmt.Printf("Error when call LogDataFromFile():", err)
-			return
+			fmt.Println("Error when log Data:", err)
 		}
+		fmt.Print("processEvent")
 		err = processEvent()
 		if err != nil {
-			fmt.Printf("Error when call CreateXML():", err)
-			return
-		}
-		} else {
-			break
-		}
-		time. Sleep(10 * time.Second)
+			fmt.Println("Error when processing Event:", err)
+		}		
+		time.Sleep(600 * time.Second)
 	}
 }
+
 //------------------------Log CSV files
-func LogDataFromFile(path string) error {	
-	var err error	
-	files, err := listFilesInDirectory(path, ".csv")
-	if err != nil {
-		return err
+func LogDataFromFile(events []map[string]interface{}) error {
+	path := path.Join(cwd, "/csv_data/")
+	today := time.Now()
+	i := 0
+	for i < 7 {
+		newdt := today.AddDate(0,0,i-7).Format(CSVTimeFormat)
+		fmt.Println(newdt)
+		for _, event := range events {
+			eventid := event["id"].(string)
+			filename := fmt.Sprintf("%s_%s.csv", eventid, newdt)
+			pathFile := fmt.Sprintf("%s/%s", path, filename)
+			data, err := ReadCSVFile(pathFile)
+			if err != nil {
+				fmt.Printf("Can not read file: %s", pathFile)
+				continue
+			}
+			var columns []string
+			if findString(Type1Events, eventid) {
+				columns = Type1Params
+			} else if findString(Type2Events, eventid)  { 
+				columns = Type2Params
+			}
+			dtString :=data[0][0]
+			values := data[0]
+			dt, _ := time.Parse(CSVTimeFormat, dtString)
+			values[0] = ConverToEventDate(EventTimeFormat, dt)
+			err = LogData(eventid, columns, values, "")
+			if err != nil {
+				continue
+			}
+			pathTo := fmt.Sprintf("%s/saved/%s",path,filename)
+			MoveFile(pathFile, pathTo)
+		}
+		i++	
+		
 	}
-	for _, filename := range files {
-		fileSavePath := fmt.Sprintf("%s/saved/%s",path,filename)
-		eventType := strings.Split(filename, "_")[0]
-		sourceFile := fmt.Sprintf("%s/%s", path, filename)
-		sourceData, err := ReadCSVFile(sourceFile)
-		if err != nil {
-			log.Fatalf("Error reading CSV file: %s", err)
-		}
-		err = processFile(eventType, sourceData)
-		if err != nil {
-			log.Fatalf("Error process CSV file: %s", err)
-		}
-		MoveFile(sourceFile, fileSavePath)
-		}
 	return nil
 }
-
-func processFile(eventType string, sourceData [][]string) error {
-	object := eventsMap[eventType] 
-	dt, _ := time.Parse(CSVTimeFormat, sourceData[1][0])
-	sourceDatetime := ConverToEventDate(EventTimeFormat, dt)
-	savedData, _ := getLastRecord(eventType)
-	savedDatetime := savedData["datetime"]
-	var e map[string]string
-	if _, ok := object.(*EventTypeFlow); ok {
-		e["datetime"] = sourceDatetime
-		e["mass"] = sourceData[1][1]
-		e["massflowbegin"] = sourceData[1][2]
-		e["massflowend"] = sourceData[1][3]
-		e["temperature"] = sourceData[1][4]
-		e["density"] = sourceData[1][5]
-		e["volume"] = sourceData[1][6]
-	} else if _, ok := object.(*EventTypeLevel); ok {
-		e["datetime"] = sourceDatetime
-		e["mass"] = sourceData[1][1]
-		e["tankLevel"] = sourceData[1][2]
-		e["volume"] = sourceData[1][3]
-		e["temperature"] = sourceData[1][4]
-		e["density"] = sourceData[1][5]
-	} else {
-		// Не удалось определить тип события
-		fmt.Printf("Не определен тип события")
-	}
-	if len(savedData) == 0 {
-		_ = LogData(eventType, e)
-	} else {
-		
-		if isAfter, err := date1_after_date2(sourceDatetime, savedDatetime); err != nil {
-					log.Fatalf("Error comparing dates: %s", err)
-				} else if isAfter {
-					err = LogData(TableName, EventParams, LoggedData)
-					if err != nil {
-						fmt.Printf("Error when call logger():", err)
-						return nil
-					}
-				} else {
-					fmt.Printf("Parsed data must be greater than already stored in DB: %s\n", LastSavedEventTime)
-				}
-			}		
-		
-	// event.datetime = LastSaveData["datetime"]
-	// ParsedEventTime := ConverToEventDate(EventTimeFormat, LoggedDataTime)
-	// LoggedData[0] = ParsedEventTime
-	// if len(LastSaveData) == 0 {
-	// 	_ = LogData(TableName, EventParams, LoggedData)
-	// } else {
-	// 	if isAfter, err := date1_after_date2(ParsedEventTime, LastSavedEventTime); err != nil {
-	// 		log.Fatalf("Error comparing dates: %s", err)
-	// 	} else if isAfter {
-	// 		err = LogData(TableName, EventParams, LoggedData)
-	// 		// err = CreateXML(ParsedEventTime)
-	// 		if err != nil {
-	// 			event["Error when call logger():", err)
-	// 			return nil
-	// 		}
-	// 	} else {
-	// 		fmt.Printf("Parsed data must be greater than already stored at DB: %s\n", LastSavedEventTime)
-	// 	}
-	// } 
-
-	return nil
-}
-//------------------------Prepare XML document
+//------------------------Prepare XML docement
 func processEvent() error {
 	var err error
-	var eventDate string
-	randomstring := generateRandomString()
-	lastCreatedXML, err := getLastRecord("DOCUMENTS")
-	if err != nil {
-		return err
-	}	
-	lastEventDate := lastCreatedXML["datetime"]
-	if lastEventDate == "" {
-		var dateInTable string
-		dateInTable = ""
-		for idx, table := range allTabels {
-			data, err := getFirstRecord(table, nil)
+	// var eventDate string
+	// Try to find latest recordset with state STDBY
+	// And sebd it after 18:00
+	eventRecordSet, _ := getLastRecord("DOCUMENTS", []string{"state='STDBY'"})
+	if len(eventRecordSet) > 0 {
+		date1 := time.Now().In(location)
+		date2 := time.Date(date1.Year(), date1.Month(), date1.Day(), 18,0,0,0, date1.Location())
+		if date1.After(date2) {
+			DocumentXML := eventRecordSet["document"]
+			eventDate := eventRecordSet["datetime"]
+			err = SendMessage(DocumentXML, eventDate)
 			if err != nil {
-				return err
+				fmt.Println("Error when call SendMessage():", err)
 			}
-			if idx == 0 {
-				dateInTable = data["datetime"]
-			} else {
-				if data["datetime"] == dateInTable {
-					dateInTable = data["datetime"]
-				} else {
-					dateInTable = ""
-					break
-				}
-			}
-		}
-		if dateInTable != "" {
-			eventDate = dateInTable
+		} else {
+			fmt.Println("Waiting...")
 		}
 	} else {
-		eventPrevDate, _ := time.Parse(EventTimeFormat, lastEventDate)
-		eventNewDate := eventPrevDate.AddDate(0, 0, 1)
-		eventDate = eventNewDate.Format(EventTimeFormat)
+		// Try to create XML document after 13:00 wyen process data come
+		fmt.Println("Collecting data...")
+		eventRecordSet, _ = getLastRecord("DOCUMENTS", nil)
+		if len(eventRecordSet) > 0 {
+			existEventDate := eventRecordSet["datetime"]
+			err = createDocumentXML(existEventDate)
+			if err != nil {
+				fmt.Println("Error when call createDocumentXML():", err)
+			}
+		}
 	}
-	EventData, err := getEventData(eventDate)
+	return nil
+}
 
+func createDocumentXML(existEventDate string) (error) {
+	randomstring := generateRandomString()
+	var err error
+	exDate, err := time.Parse(EventTimeFormat, existEventDate)
 	if err != nil {
-		return err
-	}
-	if EventData == "" {
 		return nil
 	}
-	dateTimeNowString := time.Now().Format(EventTimeFormat)
-	var xmlBuffer bytes.Buffer
-	xmlBuffer.WriteString(fmt.Sprintf(
-		`<ns2:SendMessage xmlns:ns2="http://bip.bee.kz/SyncChannel/v10/Types"> <request> <requestInfo> <messageId>%s</messageId> <serviceId>%s</serviceId> <messageDate>%s</messageDate> <sender> <senderId>%s</senderId> <password>%s</password> </sender> </requestInfo> <requestData> <data xmlns:cs="http://message.persistence.interactive.nat" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="cs:Request">%s</data> </requestData> </request> </ns2:SendMessage>`,
-		randomstring, serviceId, dateTimeNowString, senderId, senderPassword, EventData))
-	xmlString := xmlBuffer.String()
-	fmt.Printf(xmlString)
-	err = LogData("DOCUMENTS", []string{"document", "datetime"}, []string{xmlString, eventDate})
-	if err != nil {
-		return err
+	todayDate := time.Now()
+	for todayDate.After(exDate) {
+		newDate := exDate.AddDate(0, 0, 1)
+		exDate = newDate
+		eventDate := newDate.Format(EventTimeFormat)
+		fmt.Print("Try to collect data for new XML document\n")
+		fmt.Print(eventDate)
+		
+		eventData, err := getEventData(eventDate)
+		if stringIsEmpty(eventData) {
+			continue
+		}
+		if err != nil {
+			continue
+		}
+		var xmlBuffer bytes.Buffer
+		xmlBuffer.WriteString(fmt.Sprintf(
+			`<ns2:SendMessage xmlns:ns2="http://bip.bee.kz/SyncChannel/v10/Types"> <request> <requestInfo> <messageId>%s</messageId> <serviceId>%s</serviceId> <messageDate>%s</messageDate> <sender> <senderId>%s</senderId> <password>%s</password> </sender> </requestInfo> <requestData> <data xmlns:cs="http://message.persistence.interactive.nat" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="cs:Request">%s</data> </requestData> </request> </ns2:SendMessage>`,
+			randomstring, serviceId, todayDate.Format(EventTimeFormat), senderId, senderPassword, eventData))
+		xmlString := xmlBuffer.String()
+		err = LogData("DOCUMENTS", []string{"document", "datetime"}, []string{xmlString, eventDate}, "STDBY")
+		if err != nil {
+			fmt.Print(err)
+		}
+		
+		time. Sleep(1 * time.Second)
 	}
-	content, err := SendMessage(xmlString)
-	if err != nil {
-		fmt.Printf("Error when call SendMessage():", err)
-		return err
-	}
-	destPath := fmt.Sprintf("/app/xml_data/message_%s.xml",eventDate)
-	SaveToFile(destPath, content)
 	return nil
+}
+
+func stringIsEmpty(String string) bool {
+	//
+	isEmpty := true
+	for _, char := range String {
+		if !unicode.IsSpace(char) {
+			isEmpty = false
+			break
+		}
+	}
+	if isEmpty {
+		fmt.Println("Empty string")
+	}
+	return isEmpty
 }
 
 func getEventData(eventDate string) (string, error) {
 	var eventDataArray []string
-	for _, item := range objects {
-		if itemMap, ok := item.([]interface{}); ok {
-			for _, value:= range itemMap {
-				if eventData, ok := value.(map[string]interface{}); ok {
-					getEventData, err := generateXMLString(eventData, eventDate)
-					if getEventData == "" {
-						return "", nil
-					} else {
-					eventDataArray = append(eventDataArray, getEventData)
-					}
-					if err != nil {
-						errMsg2 := fmt.Sprintf("Error generate XML with data): %s", err)
-						fmt.Printf(errMsg2)
-						return "", err
-					}
-				}
-			}
+	for _, event:= range events {
+		getEventData, err := generateXMLString(event, eventDate)
+		if err != nil {
+			errMsg2 := fmt.Sprintf("Error generate XML with data): %s", err)
+			fmt.Println(errMsg2)
+			return "", err
+		}
+		if stringIsEmpty(getEventData) {
+			fmt.Printf("Empty string for: %s", eventDate)
+			return "", nil
+		} else {
+			eventDataArray = append(eventDataArray, getEventData)
 		}
 	}
 	eventData := strings.Join(eventDataArray, " ")
@@ -369,38 +409,38 @@ func getEventData(eventDate string) (string, error) {
 func generateXMLString(event map[string]interface{}, EventDate string) (string, error) {
 	// get process data
 	excludeEventItems := map[string]bool{
-		"deviceTypeID":     true,
-		"operationTypeID":  true,
-		"productTypeID":    true,
-		"pipelineID":       true,
-		"deviceNameID":     true,
-		"id":				true,
-		// "sentMessageDate":	false,
-		// "state":			false,
-		// "createdAtDate":	false,
+		"deviceTypeId":     true,
+		"operationTypeId":  true,
+		"productTypeId":    true,
+		"pipelineId":       true,
+		"deviceNameId":     true,
 	}
 
 	exludeDataItems := map[string]bool{
 		"ID":				true,
 		"createdAtDate":	true,
+		"datetime":			true,
 	}
 
-	table, ok := event["id"].(string)
+	eventId, ok := event["id"].(string)
 	if !ok {
 		return "", fmt.Errorf("event ID is not a string")
 	}
 	filter := []string{fmt.Sprintf("datetime = '%s'", EventDate)}
-	data, err := getFirstRecord(table, filter)
+	data, err := getFirstRecord(eventId, filter)
 	if err != nil {
 		return ``, err
 	}
 	if data == nil {
 		return "", nil
 	}
-	EventRecordDate, _ = time.Parse(EventTimeFormat,data["datetime"])
+	datetime := data["datetime"]
+	EventRecordDate, _ = time.Parse(EventTimeFormat,datetime)
 	// create xml string
 	var xmlBuffer bytes.Buffer
 	xmlBuffer.WriteString("<events>")
+	xmlBuffer.WriteString(fmt.Sprintf("<id>%s</id>", eventId))
+	xmlBuffer.WriteString(fmt.Sprintf("<datetime>%s</datetime>", datetime))
 	// add static configuration 
 	for key, value := range event {
 		if !excludeEventItems[key] {
@@ -422,106 +462,172 @@ func generateXMLString(event map[string]interface{}, EventDate string) (string, 
 	xmlBuffer.WriteString("</events>")
 	return xmlBuffer.String(), nil
 }
-
 //------------------------Send SOAP message
-func SendMessage(xmlstring string) (string, error) {
+func SendMessage(xmlstring, eventDate string) (error) {
+	var err error
 	state := "FAIL"
-
+	table := "DOCUMENTS"
+	condition := fmt.Sprintf("datetime = '%s'", eventDate)
 	// для теста
 	// opts := gokalkan.OptsTest
 
-	// для прода
 	opts := gokalkan.OptsProd
 	cli, err := gokalkan.NewClient(opts...)
 	if err != nil {
 		fmt.Print(fmt.Sprintf("ERROR, new kalkan client create error: %s", err))
-		return "", err
+		return err
 	}
 	defer cli.Close()
-
-	filter := []string{"state=='STDBY'"}
-	data, _ := getFirstRecord("DOCUMENTS", filter)
-	if data == nil {
-		return "", nil
-	}
-	xmlString := data["document"]
-	if xmlString == "" {
-		return "", nil
-	}
-	eventDate := data["datetime"]
-	if eventDate == "" {
-		return "", nil
-	}
 
 	//sign message
 	randomUUID = generateRandomString()
 	err = cli.LoadKeyStore(certPath, certPassword)
 	if err != nil {
-		return "", err
+		return err
 	}
-	message, err := cli.SignWSSE(xmlString, fmt.Sprintf("id-%s", randomUUID))
-	fmt.Printf(randomUUID)
-	fmt.Printf(message)
-	err = sendRequest(ip, port, message)
+	message, err := cli.SignWSSE(xmlstring, fmt.Sprintf("id-%s", randomUUID))
+	// message := "uuuuuuuuuuuuuuu"
+	fmt.Println(randomUUID)
+	fmt.Println(message)
+
+	destPath := fmt.Sprintf("%s/xml_data/message_%s.xml",cwd,eventDate)
+	SaveToFile(destPath, message)
+
+	// timeout := 10 * time.Second // Пример: таймаут 10 секунд
+	// err = sendRequest(ip, port, message, timeout)
+	err = sendRequest(message)
 	if err != nil {
-		fmt.Printf("Error creating request:", err)
-		return "", err 
+		fmt.Println("Error creating request:", err)
+		err = updateState(table, condition, state)
+		return err 
 	}
-	table := "DOCUMENTS"
-	err = updateData(table, eventDate, state)
+	state = "SUCCESS"
+	err = updateState(table, condition, state)
 	if err != nil {
-		fmt.Printf("Error update data after success send message", err)
-		return "", err 
+		fmt.Println("Error update data after success send message", err)
+		return err 
 	}
-return message, nil
+return nil
 }
 
-func sendRequest(ip, port, message string) (error) {
+func sendRequest(data string) error {
 
-	// Set the URL and HTTP method
-	url := fmt.Sprintf("http://%s:%s/bip-sync-wss-gost/", ip, port)
+	url := "https://195.12.113.29/bip-sync-wss-gost/"
 	method := "POST"
-	payload := strings.NewReader(message)
 
-	// Create a request with the SOAP message
-	client := &http.Client {
+	payload := strings.NewReader(data)
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
+	client := &http.Client {Transport: tr }
 	req, err := http.NewRequest(method, url, payload)
+
 	if err != nil {
-		fmt.Printf("Error creating request:", err)
-		return err 
+	fmt.Println(err)
+	return err
 	}
-	// Set headers for the SOAP request
-	req.Header.Set("Content-Type", "text/xml; charset=utf-8")
-	// Make the HTTP request
+	req.Header.Add("Content-Type", "text/xml")
+
 	res, err := client.Do(req)
 	if err != nil {
-		return err 
+	fmt.Println(err)
+	return err
 	}
 	defer res.Body.Close()
-	
-	responseBody, err := ioutil.ReadAll(res.Body)
+
+	body, err := ioutil.ReadAll(res.Body)
 	if err != nil {
-		return err 
+	fmt.Println(err)
+	return err
 	}
-	responseString := string(responseBody)
-	fmt.Printf("Response Body:", string(responseString))
+	fmt.Println(string(body))
 	return nil
 }
 
+// func sendRequest(ip, port, message string, timeout time.Duration) ([]byte, error) {
+//     url := fmt.Sprintf("https://%s/bip-sync-wss-gost/", ip)
+//     method := "POST"
+//     payload := strings.NewReader(message)
+
+//     client := &http.Client{}
+//     ctx, cancel := context.WithTimeout(context.Background(), timeout)
+//     defer cancel() // Освобождаем ресурсы контекста после выполнения функции
+    
+//     req, err := http.NewRequestWithContext(ctx, method, url, payload)
+//     if err != nil {
+//         fmt.Println("Error creating request:", err)
+//         return nil, err
+//     }
+//     req.Header.Set("Content-Type", "text/xml; charset=utf-8")
+
+//     res, err := client.Do(req)
+//     if err != nil {
+//         fmt.Println("Error making HTTP request:", err)
+//         return nil, err
+//     }
+//     defer res.Body.Close()
+
+//     if res.StatusCode != http.StatusOK {
+//         fmt.Printf("Received non-success status code: %d\n", res.StatusCode)
+//         return nil, fmt.Errorf("non-success status code: %d", res.StatusCode)
+//     }
+
+//     responseBody, err := ioutil.ReadAll(res.Body)
+//     if err != nil {
+//         fmt.Println("Error reading response body:", err)
+//         return nil, err
+//     }
+
+//     fmt.Println("Response Body:", string(responseBody))
+//     return responseBody, nil
+// }
+
+
+
+// func sendRequest(ip, port, message string) (error) {
+
+// 	// Set the URL and HTTP method
+// 	url := fmt.Sprintf("http://%s:%s/bip-sync-wss-gost/", ip, port)
+// 	method := "POST"
+// 	payload := strings.NewReader(message)
+
+// 	// Create a request with the SOAP message
+// 	client := &http.Client {
+// 	}
+// 	req, err := http.NewRequest(method, url, payload)
+// 	if err != nil {
+// 		fmt.Println("Error creating request:", err)
+// 		return err 
+// 	}
+// 	// Set headers for the SOAP request
+// 	req.Header.Set("Content-Type", "text/xml; charset=utf-8")
+// 	// Make the HTTP request
+// 	res, err := client.Do(req)
+// 	if err != nil {
+// 		return err 
+// 	}
+// 	defer res.Body.Close()
+	
+// 	responseBody, err := ioutil.ReadAll(res.Body)
+// 	if err != nil {
+// 		return err 
+// 	}
+// 	responseString := string(responseBody)
+// 	fmt.Println("Response Body:", string(responseString))
+// 	return nil
+// }
+
+
 // Update status from STDBY to DONE
-func updateData(table, eventDate, state string) (error) {
+func updateState(table, condition, state string) (error) {
 	var err error
 	columns := []string{"state", "sentMessageDate"}
 	values := []string{state, time.Now().Format(EventTimeFormat)}
-
 	var columnValuePairs []string
-	
-	// for i := 0; i > len(columns); i++ {
 	for i := range columns {
 		columnValuePairs = append(columnValuePairs, fmt.Sprintf(`%s = '%s'`, columns[i], values[i]))
 	}
-	condition := fmt.Sprintf("datetime = '%s'", eventDate)
+	// condition := fmt.Sprintf("datetime = '%s'", eventDate)
 	// UPDATE 'DOCUMENTS' SET state='SUCCESS' WHERE datetime = '2023-08-27T13:00:00.000+00:00'
 	query := fmt.Sprintf(`UPDATE '%s' SET %s WHERE (%s)`, table, strings.Join(columnValuePairs, ","), condition)
 	err = putData(db, query, values)
@@ -531,23 +637,29 @@ func updateData(table, eventDate, state string) (error) {
 	return nil
 }
 
-//
+// //----------------------------- // ------------------------------------------ //
 func generateRandomString() string {
 	uuid := uuid.New()
 	return uuid.String()
 }
 
+// --------------- work with database ---------------------
 // GetData fetches data from the specified table in the SQLite database and processes it.
-func getLastRecord(table string) (map[string]string, error) {
-	// // Construct the SQL query to fetch the last row from the specified table
-	query := fmt.Sprintf("SELECT * FROM '%s' ORDER BY datetime DESC LIMIT 1", table)
-	fmt.Printf(query)
+func getLastRecord(table string, filter []string) (map[string]string, error) {
+	var query string
+	// Construct the SQL query to fetch the last row from the specified table
+	if filter != nil {
+		query = fmt.Sprintf(`SELECT * FROM '%s' WHERE %s ORDER BY datetime DESC LIMIT 1`, table, strings.Join(filter, ","))
+	} else {
+		query = fmt.Sprintf("SELECT * FROM '%s' ORDER BY datetime DESC LIMIT 1", table)
+	}
+	fmt.Println(query)
 	// Query the database
 	_, data, err := getData(query)
 	if err != nil {
 		return nil, err
 	}
-	// event[data)
+	fmt.Println(data)
 	return data, nil
 }
 
@@ -558,25 +670,30 @@ func getFirstRecord(table string, filter []string) (map[string]string, error) {
 	} else {
 		query = fmt.Sprintf(`SELECT * FROM '%s' ORDER BY datetime ASC LIMIT 1`, table)
 	}
-	fmt.Printf(query)
+	fmt.Println(query)
 	_, data, err := getData(query)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf(data)
+	fmt.Println(data)
 	return data, nil
 }
 
 // InsertData inserts data into the specified table in the SQLite database.
-func LogData(table string, data map[string]string) error {
+func LogData(table string, EventParams []string, values []string, state string) error {
 	var err error
 	columns := EventParams
 	columns = append(columns, "createdAtDate")
 	values = append(values, time.Now().Format(EventTimeFormat))
 	if table == "DOCUMENTS" {
 		columns = append(columns, "state")
-		values = append(values, "STDBY")
+		values = append(values, state)
 	}
+	// Construct the SQL query for insertion
+	valuePlaceholders := strings.Repeat("?, ", len(columns)-1) + "?" // Repeat the "?" for placeholders
+	EventParamsString := strings.Join(columns, ",")
+	query := fmt.Sprintf("INSERT OR IGNORE INTO '%s' (%s) VALUES (%s)", table, EventParamsString, valuePlaceholders)
+	fmt.Println(query)
     err = putData(db, query, values)
     if err != nil {
         log.Fatal(err)
@@ -604,11 +721,9 @@ func ReadCSVFile(fileName string) ([][]string, error) {
 	}
 
 	var rows [][]string
-	// var dataList []map[string]string
 
 	// Skip the header row
 	if len(records) > 0 {
-		// columns := records[0]
 		rows = records[1:]
 	}
 	return rows, nil
@@ -657,7 +772,7 @@ func date1_after_date2(dateStr1, dateStr2 string) (bool, error) {
 	// Layout represents the format of the date string
 	// layout := "02/01/2006"
 
-	// Parse the date strings into time.Time objects
+	// Parse the date strings into time.Time events
 	date1, err := time.Parse(EventTimeFormat, dateStr1)
 	if err != nil {
 		return false, fmt.Errorf("error parsing date1: %w", err)
@@ -675,9 +790,7 @@ func date1_after_date2(dateStr1, dateStr2 string) (bool, error) {
 // GetData fetches data from the specified table in the SQLite database and processes it.
 // It returns true if the operation is successful.
 func getData(query string) ([]string, map[string]string, error) {
-
     rows, err := db.Query(query)
-	// log.Printf(query)
     if err != nil {
         log.Fatalf("Error querying data: %s", err)
     }
@@ -688,7 +801,6 @@ func getData(query string) ([]string, map[string]string, error) {
 	}
 	// Create a map to hold the scanned data
 	scannedData := make(map[string]string)
-	// If rows.Next() returns true, there's data to scan
 	columns, _ := rows.Columns()
 	// Scan the row into the scannedData map
 	values := make([]interface{}, len(columns))
@@ -709,21 +821,11 @@ func getData(query string) ([]string, map[string]string, error) {
 }
 
 // InsertData inserts data into the specified table in the SQLite database.
-func putData(db *sql.DB, data map[string]interface{}) error {
-	for col := range data {
-		columns := append(columns, col)
-		values := append(values, data[col])
+func putData(db *sql.DB, query string, values []string) error {
+	data := make([]interface{}, len(values))
+	for i, v := range values {
+		data[i] = v
 	}
-
-	// Construct the SQL query for insertion
-	valuePlaceholders := strings.Repeat("?, ", len(columns)-1) + "?" // Repeat the "?" for placeholders
-	EventParamsString := strings.Join(columns, ",")
-	query := fmt.Sprintf("INSERT OR IGNORE INTO '%s' (%s) VALUES (%s)", table, EventParamsString, valuePlaceholders)
-
-	// d := make([]interface{}, len(values))
-	// for i, v := range data {
-	// 	d[i] = v
-	// }
 	tx, err := db.Begin() // Start a transaction
     if err != nil {
         return fmt.Errorf("error beginning transaction: %w", err)
@@ -731,7 +833,7 @@ func putData(db *sql.DB, data map[string]interface{}) error {
     
     defer tx.Rollback() // Rollback the transaction in case of errors
     
-    _, err = tx.Exec(query, values...)
+    _, err = tx.Exec(query, data...)
     if err != nil {
         return fmt.Errorf("error executing query: %w", err)
     }
@@ -742,12 +844,12 @@ func putData(db *sql.DB, data map[string]interface{}) error {
 	return nil
 }
 
-func MoveFile(sourcePath, destPath string) error {
-    inputFile, err := os.Open(sourcePath)
+func MoveFile(pathFile, pathTo string) error {    
+	inputFile, err := os.Open(pathFile)
     if err != nil {
         return fmt.Errorf("Couldn't open source file: %s", err)
     }
-    outputFile, err := os.Create(destPath)
+    outputFile, err := os.Create(pathTo)
     if err != nil {
         inputFile.Close()
         return fmt.Errorf("Couldn't open dest file: %s", err)
@@ -759,11 +861,15 @@ func MoveFile(sourcePath, destPath string) error {
         return fmt.Errorf("Writing to output file failed: %s", err)
     }
     // The copy was successful, so now delete the original file
-    err = os.Remove(sourcePath)
+    err = os.Remove(pathFile)
     if err != nil {
         return fmt.Errorf("Failed removing original file: %s", err)
     }
     return nil
+}
+
+func ConverToEventDate(layout string, eventTime time.Time) (string) {
+	return time.Date(eventTime.Year(), eventTime.Month(), eventTime.Day(), 13, 0, 0, 0, eventTime.Location()).Format(EventTimeFormat)
 }
 
 func SaveToFile(destPath, content string) {
@@ -779,115 +885,7 @@ func SaveToFile(destPath, content string) {
 		log.Fatal(err)
 	}	
 	if err != nil {
-		fmt.Printf("Error saving file:", err)
+		fmt.Println("Error saving file:", err)
 		return
 	}
 }
-
-func ConverToEventDate(layout string, eventTime time.Time) (string) {
-	return time.Date(eventTime.Year(), eventTime.Month(), eventTime.Day(), 13, 0, 0, 0, eventTime.Location()).Format(EventTimeFormat)
-}
-// func setRootDir() {
-// 	// Получаем путь к папке, в которой находится исполняемый файл
-// 	executablePath, err := os.Executable()
-// 	if err != nil {
-// 		event["Error:", err)
-// 		return
-// 	}
-
-// 	// Извлекаем путь к папке из пути к исполняемому файлу
-// 	rootPath := filepath.Dir(executablePath)
-
-// 	// Меняем текущую рабочую директорию на корневую папку
-// 	err = os.Chdir(rootPath)
-// 	if err != nil {
-// 		event["Error:", err)
-// 		return
-// 	}
-
-// 	// Теперь текущая директория установлена в корневую папку
-// 	event["Root path:", rootPath)
-// }
-
-
-
-
-
-
-
-
-
-
-
-
-
-// func sendMail(to string, subject string, body string) {
-// 	// Set up authentication information.
-// 	mailSender   := os.Getenv("mailSender")
-// 	appPassword  := os.Getenv("appPassword")
-
-// 	smtpHost := os.Getenv("smtpHost")
-// 	smtpPort := os.Getenv("smtpPort")
-
-// 	// Compose the email message
-// 	message := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\n\r\n%s", mailSender, to, subject, body)
-
-// 	// SMTP authentication setup
-// 	auth := smtp.PlainAuth("", mailSender, appPassword, smtpHost)
-
-// 	// Send the email using mail.ru SMTP
-// 	err := smtp.SendMail(fmt.Sprintf("%s:%d", smtpHost, smtpPort), auth, mailSender, []string{to}, []byte(message))
-// 	if err != nil {
-// 		logging(fmt.Sprintf("Error sending email: %s",err))
-// 		return
-// 	}
-
-// 	logging("Email sent successfully.")
-// }
-
-// func logging(text string) {
-// 	// Get the current date and time
-// 	now := time.Now()
-
-// 	// Format the date as "YYYY-M-D"
-// 	date := now.Format("2006-1-2")
-
-// 	// Format the time as "HH:MM:SS"
-// 	time := now.Format("15:04:05")
-
-// 	// Create the log text
-// 	logText := fmt.Sprintf("%s %s: %s \n", date, time, text)
-// 	logFileName :="log.log"
-// 	// check for file exist if not create one
-// 	checkFileExistIfNotCreate(logFileName)
-
-// 	// Append the log text to the log file
-// 	file, err := os.OpenFile(logFileName, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
-// 	if err != nil {
-// 		event["Error opening file:", err)
-// 	}
-// 	defer file.Close()
-
-// 	// Append text to the file
-// 	_, err = io.WriteString(file, logText)
-// 	if err != nil {
-// 		event["Error writing to file:", err)
-// 	}
-// }
-
-// func checkFileExistIfNotCreate(filePath string) {
-// 	// check for file exist if not create one
-// 	// Check if the file exists
-// 	_, err := os.Stat(filePath)
-// 	if err != nil {
-// 		// File does not exist, create it
-// 		file, err := os.Create(filePath)
-// 		if err != nil {
-// 			event["Error creating file:", err)
-// 			return
-// 		}
-// 		defer file.Close()
-
-// 		event["File created:", filePath)
-// 	}
-// }

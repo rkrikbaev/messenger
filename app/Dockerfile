@@ -33,4 +33,4 @@ WORKDIR /app
 RUN go get github.com/joho/godotenv v1.5.1
 RUN go get github.com/mattn/go-sqlite3 v1.14.17
 
-#ENTRYPOINT ["/app/entrypoint.sh"]
+ENTRYPOINT ["./run.sh"]

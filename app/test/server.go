@@ -14,13 +14,13 @@ func soapHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	port := "8080"
+	port := "80"
 	path := "/bip-sync-wss-gost/"
 	
 	http.HandleFunc(path, soapHandler)
 	
 	fmt.Printf("Starting test SOAP server on port %s...\n", port)
-	err := http.ListenAndServe(":"+port, nil)
+	err := http.ListenAndServe("", nil)
 	if err != nil {
 		fmt.Printf("Error starting server: %s\n", err)
 	}
