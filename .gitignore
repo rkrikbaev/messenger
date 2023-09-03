@@ -10,3 +10,7 @@ python.idea/
 *.tar
 **/test/mlruns*
 samples/
+*.db
+*.csv
+*.xml
+vendor

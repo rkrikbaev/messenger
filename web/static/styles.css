@@ -1,0 +1,15 @@
+<style>
+  /* Define the horizontal container class */
+  .horizontal-container {
+    display: flex; /* Use flexbox layout */
+    align-items: center; /* Center align items vertically */
+    gap: 20px; /* Add some space between the elements */
+  }
+
+  /* Style for labels, inputs, and button inside the horizontal container */
+  .horizontal-container label,
+  .horizontal-container input,
+  .horizontal-container button {
+    margin: 0; /* Reset margin to remove any default spacing */
+  }
+</style>
