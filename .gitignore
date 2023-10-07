@@ -3,7 +3,7 @@
 app/__pycache__
 __pycache__
 app/logs
-.env
+*.env
 python.idea/
 .vscode
 .venv

@@ -1,17 +1,17 @@
 from flask import Flask, render_template, request
-import sqlite3
+import sqlite3 as sql
 from datetime import datetime
 
 # from flask_sqlalchemy import SQLAlchemy
 
 # Имя базы данных SQLite
-database_name = "mydatabase.db"
+database_name = "/Users/rustamkrikbayev/projects/parser/web/mydatabase.db"
 
 app = Flask(__name__)
 
 def get_db_connection():
-    conn = sqlite3.connect(database_name)
-    conn.row_factory = sqlite3.Row
+    conn = sql.connect(database_name)
+    conn.row_factory = sql.Row
     return conn
 
 @app.route('/health')
@@ -21,55 +21,88 @@ def health():
     # Pass the current date and time to the HTML template
     return render_template('index.html', current_datetime=current_datetime)
     
+# @app.route('/')
+# def ajax_table():
+#     return render_template('production.html', title='Product Table')
+
+import sqlite3 as sql
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
+
+@app.route('/update_data', methods=['POST'])
+def update_data():
+    if request.method == 'POST':
+        try:
+            # Retrieve the updated data from the POST request as JSON
+            updated_data = request.get_json()
+            print('get POST request', updated_data)
+            # Extract the relevant data from the JSON request
+
+            record_id = updated_data.get('record_id')
+            updated_status = updated_data.get('status')
+
+            print(record_id)
+            print(updated_status)
+
+            # Update the "messages" table in the database
+            con = sql.connect(database_name)
+            cur = con.cursor()
+
+            # Use an SQL UPDATE statement to update the "status" and "sent" columns
+            cur.execute("UPDATE messages SET status = ? WHERE id = ?", (updated_status, record_id))
+            con.commit()
+            con.close()
+
+            response_data = {'messages': 'Data updated successfully'}
+            return jsonify(response_data), 200  # Respond with JSON and HTTP status code 200 (OK)
+
+        except Exception as e:
+            error_message = {'error': str(e)}
+            print(e)
+            return jsonify(error_message), 500  # Respond with an error and HTTP status code 500 (Internal Server Error)
+
+    # Handle invalid requests or other conditions here
+    return jsonify({'error': 'Invalid request'}), 400  # Respond with an error and HTTP status code 400 (Bad Request)
+
 @app.route('/')
-def ajax_table():
-    return render_template('prod_table.html', title='Product Table')
+def data():
 
-@app.route('/api/data/<table>')
-def data(table):
+    # start_date = request.args.get('start_date').replace('-','.')
+    # end_date = request.args.get('end_date').replace('-','.')
 
-    start_date = request.args.get('start_date').replace('-','.')
-    end_date = request.args.get('end_date').replace('-','.')
+    # print(start_date)
+    # print(end_date)
 
-    print(start_date)
-    print(end_date)
+    con = get_db_connection()
+    cursor = con.cursor()
+    try:
+        query = f'SELECT * FROM messages ORDER BY id ASC LIMIT 10'
+        # cursor.execute(query, (start_date, end_date))
+        cursor.execute(query)
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
+        # Fetch all the rows
+        data = cursor.fetchall()
+        
+        print(data)
+        cursor.close()
 
-    query = f'SELECT * FROM {table} WHERE date BETWEEN ? AND ?'
-    cursor.execute(query, (start_date, end_date))
+        data = [
+                    {
+                        'id': row[0],
+                        'date': row[1],
+                        'body': row[2],
+                        'status': row[3],
+                        'created': row[4],
+                        'sent': row[5]
+                    } for row in data
+        ]
 
-    # Fetch all the rows
-    data = cursor.fetchall()
-    
-    print(data)
-    cursor.close()
-
-    result = [
-                {
-                    'date': row[0],
-                    'dev1_density': row[1],
-                    'dev1_volume': row[2],
-                    'dev1_temperature': row[3],
-                    'dev1_massflowbegin': row[4],
-                    'dev1_massflowend': row[5],
-                    'dev1_mass': row[6],
-                    'dev1_masstotalizer': row[7],
-                    'dev2_density': row[8],
-                    'dev2_volume': row[9],
-                    'dev2_temperature': row[10],
-                    'dev2_level': row[11],
-                    'dev2_mass': row[12],
-                    'dev3_density': row[13],
-                    'dev3_volume': row[14],
-                    'dev3_temperature': row[15],
-                    'dev3_level': row[16],
-                    'dev3_mass': row[17]
-                } for row in data
-    ]
-
-    return {'data': result}
+        return render_template('production.html', title='Журнал отправки сообщений', datas=data)
+    except sql.Error as e:
+        print("SQLite Error:", e)
+    finally:
+        con.close()
 
 if __name__ == '__main__':
 

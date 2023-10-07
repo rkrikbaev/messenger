@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <div class="horizontal-container">
+    <!-- <label for="select-table">Выбрать:</label> -->
+    <!-- <select id="select-table">
+      <option value="messages">Сообщения</option>
+      <option value="events">События</option>
+    </select> -->
+  </div>
+  <div style="margin-bottom: 20px;"></div>
+  <table id="data" class="table table-striped">
+    <thead>
+      <tr>
+        <th>Id</th>
+        <th>Дата</th>
+        <th>Статус отправки</th>
+        <th>Дата созданания</th>
+        <th>Дата отправки</th>
+        <th>Действия</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in datas %}
+      <tr>
+        <tr>
+          <td data-column-name="record_id">{{row['id']}}</td>
+          <td data-column-name="date">{{row['date']}}</td>
+          <td data-column-name="status">{{row['status']}}</td>
+          <td data-column-name="created">{{row['created']}}</td>
+          <td data-column-name="sent">{{row['sent']}}</td>
+          <td>
+            <button class="edit-button">Изменить</button>
+            <button class="save-button" style="display: none;">Сохранить</button>
+          </td>
+        </tr>
+      </tr>
+      {% endfor %}
+      <!-- Add more rows as needed -->
+    </tbody>
+  </table>
+
+  <script>
+
+    // Function to handle the Enter key press
+    function handleEnterKey(event) {
+      if (event.key === 'Enter') {
+        event.preventDefault(); // Prevent the default Enter key behavior (e.g., new line in input field)
+
+        // Find the closest "Save" button and trigger a click event on it
+        var row = event.target.closest('tr');
+        var saveButton = row.querySelector('.save-button');
+        
+        if (saveButton) {
+          saveButton.click(); // Simulate a click on the "Save" button
+        }
+      }
+    }
+
+  document.querySelectorAll('.edit-button').forEach(function (editButton) {
+    editButton.addEventListener('click', function () {
+      var row = editButton.closest('tr');
+      var cells = row.querySelectorAll('td');
+
+      cells.forEach(function (cell) {
+        var columnName = cell.getAttribute('data-column-name'); // Get the column name
+        var cellValue = cell.textContent.trim(); // Get the cell value
+
+        // Convert text content to a select element for editing
+        if (columnName === 'status') { // Editable column is 'status'
+          var select = document.createElement('select');
+          select.name = 'status';
+
+          // Define the options and their values
+          var options = [
+            { value: 'SDTBY', text: 'Переслать' },
+            { value: 'FAIL', text: 'Не отправлять' }
+          ];
+
+          // Create and append options
+          options.forEach(function (optionData) {
+            var option = document.createElement('option');
+            option.value = optionData.value;
+            option.textContent = optionData.text;
+
+            // Set the selected attribute if the option matches the cell value
+            if (optionData.value === cellValue) {
+              option.selected = true;
+            }
+
+            select.appendChild(option);
+          });
+
+          cell.textContent = ''; // Clear the cell's text content
+          cell.appendChild(select);
+        }
+      });
+
+      // Show the "Save" button and hide the "Edit" button
+      row.querySelector('.edit-button').style.display = 'none';
+      row.querySelector('.save-button').style.display = 'block';
+    });
+  });
+
+    
+    // Add an event listener to all editable input fields to listen for Enter key press
+    document.querySelectorAll('.editable-field').forEach(function (inputField) {
+      inputField.addEventListener('keydown', handleEnterKey);
+    });
+
+    document.querySelectorAll('.save-button').forEach(function (saveButton) {
+      saveButton.addEventListener('click', function () {
+        var row = saveButton.closest('tr');
+        var cells = row.querySelectorAll('td');
+        var updatedData = {};
+
+        cells.forEach(function (cell) {
+          var columnName = cell.getAttribute('data-column-name'); // Get the column name
+          var cellValue = cell.textContent.trim(); // Get the cell value
+          var input = cell.querySelector('select'); // Find the input field (if it exists)
+
+          // console.log("cell.querySelector('option')", input);
+
+          // // Now you can work with columnName and cellValue as needed
+          // console.log('Column Name:', columnName);
+          // console.log('Cell Value:', cellValue);
+
+          if ( input && columnName === 'status' ) {
+            updatedData[columnName] = input.value; // Store the updated value by column name
+            cell.textContent = input.value; // Convert input field back to plain text
+          }
+          if ( columnName === 'record_id' ) {
+              updatedData[columnName] = cellValue;
+          }
+      });
+
+        // console.log('UpdatedData:', updatedData);
+
+        // Send updatedData to the server using an AJAX request
+        fetch('/update_data', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(updatedData)
+        })
+        .then(function(response) {
+          if (response.ok) {
+            // Data successfully updated
+            row.querySelector('.save-button').style.display = 'none';
+            row.querySelector('.edit-button').style.display = 'block';
+          } else {
+            // Handle error
+            console.error('Error updating data');
+          }
+        })
+        .catch(function(error) {
+          // Handle network error
+          console.error(error);
+        });
+      });
+    });
+  
+  </script>
+  
+{% endblock %}
