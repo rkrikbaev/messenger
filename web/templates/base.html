@@ -2,9 +2,11 @@
 <html>
   <head>
     <title>{{ title }}</title>
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.png') }}">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-+0n0xVW2eSR5OomGNYDnhzAbDsOXxcvSN1TPprVMTNDbiYZCxYbOOl7+AMvyTG2x" crossorigin="anonymous">
-    <!-- <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.25/css/dataTables.bootstrap5.css"> -->
-    <style type="text/css">
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.25/css/dataTables.bootstrap5.css">
+    <link rel="stylesheet" type="text/css" href="static/styles.css">
+    <!-- <style type="text/css">
       button.edit-button {
        background: -moz-linear-gradient(#00BBD6, #EBFFFF);
        background: -webkit-gradient(linear, 0 0, 0 100%, from(#00BBD6), to(#EBFFFF));
@@ -26,8 +28,8 @@
        -webkit-border-radius: 5px;
        border-radius: 5px;
        border: 1px solid #666;
-      }      
-    </style>
+      }    
+    </style> -->
   </head>
   <body>
     <div class="container">

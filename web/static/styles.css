@@ -1,35 +1,23 @@
-/* Define the horizontal container class */
-.horizontal-container {
-  display: inline; /* Use inline layout */
-  font-family: Arial, sans-serif; /* Set a preferred font family */
-  background-color: #f6e7e7; /* Add a light background color */
-  padding: 10px; /* Add some padding for spacing */
-  border: 1px solid #ddd; /* Add a border for separation */
-  border-radius: 5px; /* Add rounded corners */
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Add a subtle shadow */
-}
-
-/* Style for labels, inputs, and button inside the horizontal container */
-.horizontal-container label,
-.horizontal-container input,
-.horizontal-container button {
-  margin: 0; /* Reset margin to remove any default spacing */
-  display: inline; /* Place elements inline */
-  vertical-align: middle; /* Align elements vertically in the middle */
-  font-size: 16px; /* Set a preferred font size */
-  padding: 5px 10px; /* Add padding for spacing around elements */
-  border: none; /* Remove borders from inputs and buttons */
-  border-radius: 3px; /* Add rounded corners to inputs and buttons */
-}
-
-/* Style the button with a background color and hover effect */
-.horizontal-container button {
-  background-color: #007bff; /* Set a primary button color */
-  color: #fff; /* Set text color to white */
-  cursor: pointer; /* Change cursor to pointer on hover */
-  transition: background-color 0.3s ease; /* Add a smooth transition effect */
-}
-
-.horizontal-container button:hover {
-  background-color: #0056b3; /* Darker color on hover */
-}
+.edit-button button {
+  background: -moz-linear-gradient(#d68400, #EBFFFF);
+  background: -webkit-gradient(linear, 0 0, 0 100%, from(#00BBD6), to(#EBFFFF));
+  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='#00BBD6', endColorstr='#EBFFFF');
+  padding: 3px 7px;
+  color: #333;
+  -moz-border-radius: 5px;
+  -webkit-border-radius: 5px;
+  border-radius: 5px;
+  border: 1px solid #666;
+ }
+ 
+.save-button button {
+  background: -moz-linear-gradient(#00BBD6, #EBFFFF);
+  background: -webkit-gradient(linear, 0 0, 0 100%, from(#00BBD6), to(#EBFFFF));
+  filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='#00BBD6', endColorstr='#EBFFFF');
+  padding: 3px 7px;
+  color: #333;
+  -moz-border-radius: 5px;
+  -webkit-border-radius: 5px;
+  border-radius: 5px;
+  border: 1px solid #666;
+ }

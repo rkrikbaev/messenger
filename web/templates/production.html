@@ -23,17 +23,15 @@
     <tbody>
       {% for row in datas %}
       <tr>
-        <tr>
-          <td data-column-name="record_id">{{row['id']}}</td>
-          <td data-column-name="date">{{row['date']}}</td>
-          <td data-column-name="status">{{row['status']}}</td>
-          <td data-column-name="created">{{row['created']}}</td>
-          <td data-column-name="sent">{{row['sent']}}</td>
-          <td>
-            <button class="edit-button">Изменить</button>
-            <button class="save-button" style="display: none;">Сохранить</button>
-          </td>
-        </tr>
+        <td data-column-name="record_id">{{row['id']}}</td>
+        <td data-column-name="date">{{row['date']}}</td>
+        <td data-column-name="status">{{row['status']}}</td>
+        <td data-column-name="created">{{row['created']}}</td>
+        <td data-column-name="sent">{{row['sent']}}</td>
+        <td>
+          <button class="edit-button">Изменить</button>
+          <button class="save-button" style="display: none;">Сохранить</button>
+        </td>
       </tr>
       {% endfor %}
       <!-- Add more rows as needed -->
@@ -41,31 +39,17 @@
   </table>
 
   <script>
-
-    // Function to handle the Enter key press
-    function handleEnterKey(event) {
-      if (event.key === 'Enter') {
-        event.preventDefault(); // Prevent the default Enter key behavior (e.g., new line in input field)
-
-        // Find the closest "Save" button and trigger a click event on it
-        var row = event.target.closest('tr');
-        var saveButton = row.querySelector('.save-button');
-        
-        if (saveButton) {
-          saveButton.click(); // Simulate a click on the "Save" button
-        }
-      }
-    }
-
-  document.querySelectorAll('.edit-button').forEach(function (editButton) {
-    editButton.addEventListener('click', function () {
-      var row = editButton.closest('tr');
+    // Define the event listener for the "Edit" button
+    let columnNames = ["record_id", "date", "status", "created", "sent"];
+    function handleEditButtonClick(event) {
+      var row = event.target.closest('tr');
       var cells = row.querySelectorAll('td');
-
-      cells.forEach(function (cell) {
-        var columnName = cell.getAttribute('data-column-name'); // Get the column name
+      console.log(cells)
+      cells.forEach(function (cell, index) {
+        let columnName = columnNames[index];
+        // var columnName = cell.getAttribute('data-column-name'); // Get the column name
         var cellValue = cell.textContent.trim(); // Get the cell value
-
+        console.log(columnName)
         // Convert text content to a select element for editing
         if (columnName === 'status') { // Editable column is 'status'
           var select = document.createElement('select');
@@ -99,52 +83,38 @@
       // Show the "Save" button and hide the "Edit" button
       row.querySelector('.edit-button').style.display = 'none';
       row.querySelector('.save-button').style.display = 'block';
-    });
-  });
+    }
 
-    
-    // Add an event listener to all editable input fields to listen for Enter key press
-    document.querySelectorAll('.editable-field').forEach(function (inputField) {
-      inputField.addEventListener('keydown', handleEnterKey);
-    });
+    // Define the event listener for the "Save" button
+    function handleSaveButtonClick(event) {
+      var row = event.target.closest('tr');
+      var cells = row.querySelectorAll('td');
+      var updatedData = {};
 
-    document.querySelectorAll('.save-button').forEach(function (saveButton) {
-      saveButton.addEventListener('click', function () {
-        var row = saveButton.closest('tr');
-        var cells = row.querySelectorAll('td');
-        var updatedData = {};
+      cells.forEach(function (cell, index) {
+        // var columnName = cell.getAttribute('data-column-name'); // Get the column name
+        let columnName = columnNames[index];
+        var cellValue = cell.textContent.trim(); // Get the cell value
+        var input = cell.querySelector('select'); // Find the input field (if it exists)
 
-        cells.forEach(function (cell) {
-          var columnName = cell.getAttribute('data-column-name'); // Get the column name
-          var cellValue = cell.textContent.trim(); // Get the cell value
-          var input = cell.querySelector('select'); // Find the input field (if it exists)
-
-          // console.log("cell.querySelector('option')", input);
-
-          // // Now you can work with columnName and cellValue as needed
-          // console.log('Column Name:', columnName);
-          // console.log('Cell Value:', cellValue);
-
-          if ( input && columnName === 'status' ) {
-            updatedData[columnName] = input.value; // Store the updated value by column name
-            cell.textContent = input.value; // Convert input field back to plain text
-          }
-          if ( columnName === 'record_id' ) {
-              updatedData[columnName] = cellValue;
-          }
+        if (input && columnName === 'status') {
+          updatedData[columnName] = input.value; // Store the updated value by column name
+          cell.textContent = input.value; // Convert input field back to plain text
+        }
+        if (columnName === 'record_id') {
+          updatedData[columnName] = cellValue;
+        }
       });
 
-        // console.log('UpdatedData:', updatedData);
-
-        // Send updatedData to the server using an AJAX request
-        fetch('/update_data', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(updatedData)
-        })
-        .then(function(response) {
+      // Send updatedData to the server using an AJAX request
+      fetch('/update_data', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updatedData)
+      })
+        .then(function (response) {
           if (response.ok) {
             // Data successfully updated
             row.querySelector('.save-button').style.display = 'none';
@@ -154,13 +124,92 @@
             console.error('Error updating data');
           }
         })
-        .catch(function(error) {
+        .catch(function (error) {
           // Handle network error
           console.error(error);
         });
-      });
+    }
+
+    // Add event listeners to existing "Edit" and "Save" buttons
+    document.querySelectorAll('.edit-button').forEach(function (editButton) {
+      editButton.addEventListener('click', handleEditButtonClick);
     });
-  
+
+    document.querySelectorAll('.save-button').forEach(function (saveButton) {
+      saveButton.addEventListener('click', handleSaveButtonClick);
+    });
+
+    function updateTable() {
+      // Send an AJAX request to your server to fetch data
+      fetch('/get_data')
+        .then(response => response.json())
+        .then(data => {
+          console.log(data);
+          const table = document.getElementById('data');
+          const tbody = table.querySelector('tbody');
+          // Clear the table body
+          tbody.innerHTML = '';
+
+          // Loop through the fetched data and populate the table
+          data.forEach(row => {
+            const newRow = document.createElement('tr');
+
+            // Customize this part to match your data structure
+            const idCell = document.createElement('td');
+            idCell.textContent = row.id;
+            newRow.appendChild(idCell);
+
+            const dateCell = document.createElement('td');
+            dateCell.textContent = row.date;
+            newRow.appendChild(dateCell);
+
+            const statusCell = document.createElement('td');
+            statusCell.textContent = row.status;
+            newRow.appendChild(statusCell);
+
+            const createdCell = document.createElement('td');
+            createdCell.textContent = row.created;
+            newRow.appendChild(createdCell);
+
+            const sentCell = document.createElement('td');
+            sentCell.textContent = row.sent;
+            newRow.appendChild(sentCell);
+
+            // Add "Edit" and "Save" buttons to the row
+            const editCell = document.createElement('td');
+            const editButton = document.createElement('button');
+            editButton.textContent = 'Edit';
+            editButton.className = 'edit-button'; // Assign the 'edit-button' class
+            editCell.appendChild(editButton);
+
+            // const saveCell = document.createElement('td');
+            const saveButton = document.createElement('button');
+            saveButton.textContent = 'Save';
+            saveButton.style.display = 'none'; // Initially hide the Save button
+            saveButton.className = 'save-button'; // Assign the 'save-button' class
+            editCell.appendChild(saveButton);
+
+            // Attach the existing event listeners to the buttons
+            editButton.addEventListener('click', handleEditButtonClick);
+            saveButton.addEventListener('click', handleSaveButtonClick);
+
+            newRow.appendChild(editCell);
+            // newRow.appendChild(saveCell);
+
+            // Add the new row to the table body
+            tbody.appendChild(newRow);
+          });
+        })
+        .catch(error => {
+          console.error('Error fetching data:', error);
+        });
+    }
+
+    // Update the table every minute (60,000 milliseconds)
+    setInterval(updateTable, 60000);
+
+    // Initial update when the page loads
+    updateTable();
   </script>
   
 {% endblock %}

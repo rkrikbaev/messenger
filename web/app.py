@@ -1,8 +1,9 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, jsonify
 import sqlite3 as sql
 from datetime import datetime
+import os
+from flask import send_from_directory
 
-# from flask_sqlalchemy import SQLAlchemy
 
 # Имя базы данных SQLite
 database_name = "/Users/rustamkrikbayev/projects/parser/web/mydatabase.db"
@@ -20,13 +21,7 @@ def health():
     current_datetime = datetime.now()
     # Pass the current date and time to the HTML template
     return render_template('index.html', current_datetime=current_datetime)
-    
-# @app.route('/')
-# def ajax_table():
-#     return render_template('production.html', title='Product Table')
 
-import sqlite3 as sql
-from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
@@ -65,6 +60,42 @@ def update_data():
     # Handle invalid requests or other conditions here
     return jsonify({'error': 'Invalid request'}), 400  # Respond with an error and HTTP status code 400 (Bad Request)
 
+@app.route('/get_data')
+def get_data():
+    con = get_db_connection()
+    cursor = con.cursor()
+    try:
+        query = f'SELECT * FROM messages ORDER BY id ASC LIMIT 10'
+        # cursor.execute(query, (start_date, end_date))
+        cursor.execute(query)
+
+        # Fetch all the rows
+        data = cursor.fetchall()
+        
+        print(data)
+        cursor.close()
+
+        data = [
+                    {
+                        'id': row[0],
+                        'date': row[1],
+                        'body': row[2],
+                        'status': row[3],
+                        'created': row[4],
+                        'sent': row[5]
+                    } for row in data
+        ]
+    except sql.Error as e:
+        print("SQLite Error:", e)
+    finally:
+        con.close()        
+    return  data
+
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory(os.path.join(app.root_path, 'static'),
+                               'favicon.ico', mimetype='image/favicon.png')
+
 @app.route('/')
 def data():
 
@@ -98,7 +129,7 @@ def data():
                     } for row in data
         ]
 
-        return render_template('production.html', title='Журнал отправки сообщений', datas=data)
+        return render_template('production.html', title='Журнал регистрации', datas=data)
     except sql.Error as e:
         print("SQLite Error:", e)
     finally:
