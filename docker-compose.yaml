@@ -13,27 +13,29 @@ services:
     ports:
       - 5020:5020
     volumes:
-      - ./parser/logdata:/app/logdata
-    command: python modbus_master.py
-    # depends_on:
-    #   - redis
+      - .\data:/app/data
+      - .\modbus\modbus_slave.py:/app/modbus_slave.py
+    command: "python modbus_slave.py"
+    depends_on:
+      - graber
 
   graber:
     restart: always
-    image: rkrikbaev/modbus-slave:latest
+    build:
+      context: graber
+      dockerfile: Dockerfile      
+    image: rkrikbaev/web-graber:latest
     container_name: web-graber
     stdin_open: true
     tty: true
-    ports:
-      - 5020:5020
     volumes:
-      - ./parser/logdata:/app/logdata
-      - ./parser/graber:/app
-    command: python data_graber.py
-  #   depends_on:
-  #     - redis
+      - .\data:/app/data
+      - .\graber\graber.py:/app/graber.py
+      - .\graber\config.py:/app/config.py
+    command: "python graber.py"
 
-  # redis:
-  #   image: redis:6-alpine
-  #   container_name: redis
-  #   restart: always
+  restarter:
+    image: docker:cli
+    volumes: ["/var/run/docker.sock:/var/run/docker.sock"]
+    command: ["/bin/sh", "-c", "while true; do sleep 86400; docker restart web-graber; done"]
+    restart: always

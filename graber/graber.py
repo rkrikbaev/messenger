@@ -3,7 +3,6 @@ from random import uniform
 import argparse
 import csv
 
-
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
@@ -16,8 +15,8 @@ Chrome options for headless browser is enabled.
 
 chrome_options = Options()
 chrome_options.add_argument("--headless")
-# chrome_options.add_argument("--no-sandbox")
-# chrome_options.add_argument("--disable-dev-shm-usage")
+chrome_options.add_argument("--no-sandbox")
+chrome_options.add_argument("--disable-dev-shm-usage")
 chrome_options.add_argument("--incognito")
 chrome_options.add_argument('--ignore-ssl-errors=yes')
 chrome_options.add_argument('--ignore-certificate-errors')    
@@ -33,8 +32,8 @@ def login(url, password, login)->None:
     password = driver.find_element(By.ID, "gwt-debug-userPasswordTextBox")
     login = driver.find_element(By.ID, "gwt-debug-userNameTextBox")
     
-    password.send_keys('admin')
-    login.send_keys('administrator')
+    password.send_keys("admin")
+    login.send_keys("administrator")
 
     driver.find_element(By.ID, "gwt-debug-signInButton").click()
     
@@ -92,21 +91,18 @@ if __name__ == "__main__":
 
     list_of_objects = ["gwt-debug-tankItem1", "gwt-debug-tankItem2"]
 
-    # uncomment to test    
-    # url_data = "http://127.0.0.1:5500/samples/Veeder-Root%20Web%20Interface/Veeder-Root%20Web%20Interface.html"
-    
     while True:
+    
+        driver = webdriver.Chrome('./chromedriver', options=chrome_options)
         
-        driver = webdriver.Chrome(options=chrome_options)
-        
-        login_passed = login(url_login, password='admin', login='administrator')
-        # login_passed=1
+        login_passed = login(url_login, password='admin', login='sadaat')
+
         if login_passed:
 
             driver.get(url=url_data)
 
-            sleep(10)
-            
+            sleep(20)
+
             try:
                 print("Start grabering...")
 
@@ -116,14 +112,14 @@ if __name__ == "__main__":
 
                         _, d = get_data(item)
 
-                        order = ['Fuel Volume','Fuel Height','Density','Temperature','Mass']
-                        
-                        data_list = [ round(d[value]) for value in order ]
-                        
-                        #data_list = [int(w) & 0xffff for w in word_list]
+                        order = ['Fuel Volume','Fuel Height', 'Mass', 'Density','Temperature']
+                        path = f'data/data_{index+1}.csv'
+                        data_list = [ d[value] for value in order]
+                        #print(word_list)
+                        #data_list = [int(w) for w in word_list]
                         print(data_list)
 
-                        with open(f'data_{index+1}.csv', 'w') as file:
+                        with open(path, 'w') as file:
                             csv_writer = csv.writer(file, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
                             csv_writer.writerow(data_list)
 
