@@ -36,7 +36,7 @@ import (
 	"os"
 	"path"
 
-	// "reflect"
+	"reflect"
 	"strings"
 	"time"
 
@@ -197,10 +197,10 @@ var (
 	serviceId string
 	senderId string
 	senderPassword string
-	Type1Events = []string{"407001","407002","407003"}
-	Type2Events = []string{"407004","407005","407006","407007","407008","407009"}
-	Type1Params = []string{"datetime","density","massflowbegin","massflowend","mass"}
-	Type2Params = []string{"datetime","density","volume","temperature","tankLevel","mass"}
+	// Type1Events = []string{"407001","407002","407003"}
+	// Type2Events = []string{"407004","407005","407006","407007","407008","407009"}
+	// Type1Params = []string{"datetime","density","massflowbegin","massflowend","mass"}
+	// Type2Params = []string{"datetime","density","volume","temperature","tankLevel","mass"}
 	cwd = ""
 	dbPath string
 	certPath string
@@ -248,8 +248,8 @@ func run() {
 	var err error
 	for {
 		
-		fmt.Println("LogDataFromFile")
-		err = LogDataFromFile(events)
+		fmt.Println("LogFiles")
+		err = LogFiles(events)
 		if err != nil {
 			fmt.Println("Error when log Data:", err)
 		}
@@ -262,44 +262,146 @@ func run() {
 	}
 }
 
-//------------------------Log CSV files
-func LogDataFromFile(events []map[string]interface{}) error {
-	path := path.Join(cwd, "/csv_data/")
-	today := time.Now()
-	i := 0
-	for i < 7 {
-		newdt := today.AddDate(0,0,i-7).Format(CSVTimeFormat)
-		fmt.Println(newdt)
-		for _, event := range events {
-			eventid := event["id"].(string)
-			filename := fmt.Sprintf("%s_%s.csv", eventid, newdt)
-			pathFile := fmt.Sprintf("%s/%s", path, filename)
-			data, err := ReadCSVFile(pathFile)
-			if err != nil {
-				fmt.Printf("Can not read file: %s", pathFile)
-				continue
+//------------------------Log data from CSV files
+
+func LogFiles() error {
+    path := path.Join(cwd, "/csv_data/")
+	validPrefixes := []string{"407001","407002","407003", "407004","407005","407006","407007","407008","407009"}
+    expectedHeaders := []string{"density", "massflowbegin", "massflowend", "mass", "datetime","volume","temperature","tankLevel"}
+
+	files, err := ioutil.ReadDir(path)
+    if err != nil {
+        return err
+    }
+
+    for _, file := range files {
+        fileName := file.Name()
+
+        if !file.IsDir() && strings.HasSuffix(fileName, ".csv") {
+            eventid, isValid := getValidPrefix(fileName, validPrefixes)
+            if isValid {
+                pathFile := filepath.Join(path, fileName)
+
+				//parse file to list
+				err, columns, d = ParseAndPrepareData(fileName)
+				if err != nil {
+					fmt.Println("Error when parse file: ", fileName)
+				}
+
+				err = LogData(eventid, columns, d, "")
+				if err != nil {
+					continue
+				}
+				pathTo := fmt.Sprintf("%s/saved/%s",path,filename)
+				MoveFile(pathFile, pathTo)
 			}
-			var columns []string
-			if findString(Type1Events, eventid) {
-				columns = Type1Params
-			} else if findString(Type2Events, eventid)  { 
-				columns = Type2Params
-			}
-			dtString :=data[0][0]
-			values := data[0]
-			dt, _ := time.Parse(CSVTimeFormat, dtString)
-			values[0] = ConverToEventDate(EventTimeFormat, dt)
-			err = LogData(eventid, columns, values, "")
-			if err != nil {
-				continue
-			}
-			pathTo := fmt.Sprintf("%s/saved/%s",path,filename)
-			MoveFile(pathFile, pathTo)
 		}
-		i++	
 	}
-	return nil
+	return err
 }
+
+func ParseAndPrepareData(pathFile string) error, []string{}, []string{} {
+
+	// Чтение и обработка cvs файла
+	err, headers, records := ReadCSVFile(pathFile)
+	if err != nil {
+		fmt.Printf("Cannot read file: %s\n", pathFile)
+		continue
+	}
+
+	dtValue := data[0][0]
+	
+	dt, err := time.Parse(CSVTimeFormat, dtValue)
+	if err != nil {
+		fmt.Printf("Error parsing datetime in file: %s\n", err)
+		continue
+	}
+
+	values := data[0]
+	values[0] = ConverToEventDate(EventTimeFormat, dt)
+
+	return err, headers, values
+}				
+
+// ReadCSVFile reads the data from the provided CSV file and returns a list of Data.
+func ReadCSVFile(pathFile string) (error, []string, [][]string) {
+	// Open the CSV file
+	file, err := os.Open(pathFile)
+	if err != nil {
+		return nil, fmt.Errorf("error opening CSV file: %w", err)
+	}
+	defer file.Close()
+
+	// Create a CSV reader
+	reader := csv.NewReader(file)
+    reader.Comma = ','
+
+    headers, err := reader.Read() // Читаем только заголовки
+    if err != nil {
+        return nil, fmt.Errorf("unable to read the CSV file headers: %v", err)
+    }
+
+	// Read the CSV records
+	records, err := reader.ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("error reading CSV records: %w", err)
+	}
+
+	return err, headers, records
+}
+
+func hasValidPrefix(fileName string, prefixes []string) bool {
+    // Получение префикса из имени файла
+    prefix := strings.Split(fileName, "_")[0]
+
+    for _, validPrefix := range prefixes {
+        if prefix == validPrefix {
+            return true
+        }
+    }
+    return false
+}
+
+// func LogDataFromFile(events []map[string]interface{}) error {
+// 	path := path.Join(cwd, "/csv_data/")
+// 	today := time.Now()
+// 	i := 0
+// 	for i < 7 {
+// 		newdt := today.AddDate(0,0,i-7).Format(CSVTimeFormat)
+// 		fmt.Println(newdt)
+// 		for _, event := range events {
+// 			eventid := event["id"].(string)
+// 			filename := fmt.Sprintf("%s_%s.csv", eventid, newdt)
+// 			pathFile := fmt.Sprintf("%s/%s", path, filename)
+// 			data, err := ReadCSVFile(pathFile)
+// 			if err != nil {
+// 				fmt.Printf("Can not read file: %s", pathFile)
+// 				continue
+// 			}
+// 			var columns []string
+// 			if findString(Type1Events, eventid) {
+// 				columns = Type1Params
+// 			} else if findString(Type2Events, eventid)  { 
+// 				columns = Type2Params
+// 			}
+
+// 			dtString :=data[0][0]
+// 			values := data[0]
+// 			dt, _ := time.Parse(CSVTimeFormat, dtString)
+// 			values[0] = ConverToEventDate(EventTimeFormat, dt)
+// 			err = LogData(eventid, columns, values, "")
+// 			if err != nil {
+// 				continue
+// 			}
+// 			pathTo := fmt.Sprintf("%s/saved/%s",path,filename)
+// 			MoveFile(pathFile, pathTo)
+// 		}
+// 		i++	
+// 	}
+// 	return nil
+// }
+
+
 //------------------------Prepare XML docement
 func processEvent() error {
 	var err error
@@ -700,34 +802,6 @@ func LogData(table string, EventParams []string, values []string, state string) 
         log.Fatal(err)
     }
 	return nil
-}
-
-// -------------- find & parse csv file -------------------
-// ReadCSVFile reads the data from the provided CSV file and returns a list of Data.
-func ReadCSVFile(fileName string) ([][]string, error) {
-	// Open the CSV file
-	file, err := os.Open(fileName)
-	if err != nil {
-		return nil, fmt.Errorf("error opening CSV file: %w", err)
-	}
-	defer file.Close()
-
-	// Create a CSV reader
-	reader := csv.NewReader(file)
-
-	// Read the CSV records
-	records, err := reader.ReadAll()
-	if err != nil {
-		return nil, fmt.Errorf("error reading CSV records: %w", err)
-	}
-
-	var rows [][]string
-
-	// Skip the header row
-	if len(records) > 0 {
-		rows = records[1:]
-	}
-	return rows, nil
 }
 
 func findString(arr []string, target string) bool {
