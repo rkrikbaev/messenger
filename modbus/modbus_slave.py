@@ -6,6 +6,7 @@ from time import sleep
 from random import uniform
 import argparse
 import csv
+import struct
 
 from pathlib import Path
 
@@ -32,24 +33,29 @@ if __name__ == "__main__":
         server.start()
         
         while True:
-            
+    
             if objects:
 
                 for index, item in enumerate(objects):
                     address = (index+1)*100
-
                     path = f'data/data_{index+1}.csv'
-                    
                     if Path(path).is_file():
                         with open(path, 'r') as file:
-                            word_list = list(map(lambda x: int(x), list(csv.reader(file, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL))[0]))
-                            print('from file' + str(list(word_list)))
-                        set_reg = server.data_bank.set_holding_registers(address, word_list, srv_info=None)                       
+                            # Чтение значений как float
+                            floats = list(map(lambda x: float(x), list(csv.reader(file, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL))[0]))
+                            print('from file' + str(floats))
+                            for float_val in floats:
+                                # Преобразование float в 16-битные регистры
+                                reg_values = struct.unpack('HH', struct.pack('f', float_val))
+                                # Запись в Modbus регистры
+                                set_reg = server.data_bank.set_holding_registers(address, reg_values, srv_info=None)
+                                address += 2  # Увеличиваем адрес, т.к. каждый float занимает 2 регистра
+
                     else:
                         print(f'file {path} not exist')    
                     sleep(1)
 
-                sleep(10)            
+                sleep(10)          
 
     except Exception as exc:
         print(exc)
