@@ -40,8 +40,7 @@ import (
 	"strings"
 	"time"
 
-	// "github.com/gokalkan/gokalkan"
-	"github.com/google/uuid"
+	"github.com/gokalkan/gokalkan"
 	"github.com/joho/godotenv"
 	_ "github.com/mattn/go-sqlite3"
 
@@ -328,7 +327,6 @@ func logHttp(address string) error {
 	return nil
 }
 
-
 //------------------------Log data from CSV files
 
 func LogFiles() error {
@@ -362,7 +360,7 @@ func LogFiles() error {
 				}
 				pathTo := fmt.Sprintf("%s/saved/%s",path,fileName)
 				fmt.Println(pathTo)
-				MoveFile(pathFile, pathTo)
+				utils.MoveFile(pathFile, pathTo)
 			}
 		}
 	}
@@ -405,7 +403,7 @@ func processEvent() error {
 }
 
 func createDocumentXML(existEventDate string) (error) {
-	randomstring := generateRandomString()
+	randomstring := utils.GenerateRandomString()
 	var err error
 	exDate, err := time.Parse(EventTimeFormat, existEventDate)
 	if err != nil {
@@ -541,29 +539,34 @@ func SendMessage(xmlstring, eventDate string) (error) {
 	// для теста
 	// opts := gokalkan.OptsTest
 
-	// opts := gokalkan.OptsProd
-	// cli, err := gokalkan.NewClient(opts...)
+	opts := gokalkan.OptsProd
+	cli, err := gokalkan.NewClient(opts...)
 	if err != nil {
-		fmt.Print(fmt.Sprintf("ERROR, new kalkan client create error: %s", err))
+		fmt.Printf("ERROR, new kalkan client create error: %s", err)
 		return err
 	}
-	// defer cli.Close()
+	defer cli.Close()
 
 	//sign message
-	// randomUUID = generateRandomString()
-	// // err = cli.LoadKeyStore(certPath, certPassword)
+	randomUUID = utils.GenerateRandomString()
+	err = cli.LoadKeyStore(certPath, certPassword)
 	if err != nil {
+		fmt.Printf("ERROR, new cli.LoadKeyStore error: %s", err)
 		return err
 	}
 
-	// message, err := cli.SignWSSE(xmlstring, fmt.Sprintf("id-%s", randomUUID))
-	message := "uuuuuuuuuuuuuuu"
-//	
-	// fmt.Println(randomUUID)
+	message, err := cli.SignWSSE(xmlstring, fmt.Sprintf("id-%s", randomUUID))
+	if err != nil {
+		fmt.Printf("ERROR, new cli.SignWSSE sign error: %s", err)
+		return err
+	}
+	// message := "uuuuuuuuuuuuuuu"
+	
+	fmt.Println(randomUUID)
 	// fmt.Println(message)
 
 	destPath := fmt.Sprintf("%s/xml_data/message_%s.xml",cwd,eventDate)
-	SaveToFile(destPath, message)
+	utils.SaveToFile(destPath, message)
 
 	err = sendRequest(message)
 	if err != nil {
@@ -633,12 +636,6 @@ func updateState(table, condition, state string) (error) {
 	return nil
 }
 
-// //----------------------------- // ------------------------------------------ //
-func generateRandomString() string {
-	uuid := uuid.New()
-	return uuid.String()
-}
-
 // --------------- work with database ---------------------
 // GetData fetches data from the specified table in the SQLite database and processes it.
 func getLastRecord(table string, filter []string) (map[string]string, error) {
@@ -697,64 +694,6 @@ func InsertDataIntoDB(table string, EventParams []string, values []string, state
 	return nil
 }
 
-// func findString(arr []string, target string) bool {
-// 	for _, s := range arr {
-// 		if s == target {
-// 			return true
-// 		}
-// 	}
-// 	return false
-// }
-
-// List files in filder with specified extention
-// func listFilesInDirectory(fullPath, extension string) ([]string, error) {
-	
-// 	// Check if the directory exists
-// 	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-// 		fmt.Printf("Directory does not exist: %s\n", fullPath)
-// 		return nil, err
-// 		}
-// 	// List files
-// 	files, err := ioutil.ReadDir(fullPath)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	// Check if any file exist
-// 	if len(files) == 0 {
-// 		fmt.Printf("No files found in directory: %s\n", fullPath)
-// 		return nil, nil
-// 	}
-
-// 	var filenames []string
-// 	for _, file := range files {
-// 		if filepath.Ext(file.Name()) == extension {
-// 			filenames = append(filenames, file.Name())
-// 		}
-// 	}
-
-// 	return filenames, nil
-// }
-
-// Compare and return True if date1 after date2 else return False
-// func date1_after_date2(dateStr1, dateStr2 string) (bool, error) {
-	// Layout represents the format of the date string
-	// layout := "02/01/2006"
-
-	// Parse the date strings into time.Time events
-// 	date1, err := time.Parse(EventTimeFormat, dateStr1)
-// 	if err != nil {
-// 		return false, fmt.Errorf("error parsing date1: %w", err)
-// 	}
-
-// 	date2, err := time.Parse(EventTimeFormat, dateStr2)
-// 	if err != nil {
-// 		return false, fmt.Errorf("error parsing date2: %w", err)
-// 	}
-
-// 	// Compare the dates
-// 	return date1.After(date2), nil
-// }
-
 // GetData fetches data from the specified table in the SQLite database and processes it.
 // It returns true if the operation is successful.
 func getData(query string) ([]string, map[string]string, error) {
@@ -810,46 +749,4 @@ func putData(db *sql.DB, query string, values []string) error {
         return fmt.Errorf("error committing transaction: %w", err)
     }
 	return nil
-}
-
-func MoveFile(pathFile, pathTo string) error {    
-	inputFile, err := os.Open(pathFile)
-    if err != nil {
-        return fmt.Errorf("couldn't open source file: %s", err)
-    }
-    outputFile, err := os.Create(pathTo)
-    if err != nil {
-        inputFile.Close()
-        return fmt.Errorf("couldn't open dest file: %s", err)
-    }
-    defer outputFile.Close()
-    _, err = io.Copy(outputFile, inputFile)
-    inputFile.Close()
-    if err != nil {
-        return fmt.Errorf("writing to output file failed: %s", err)
-    }
-    // The copy was successful, so now delete the original file
-    err = os.Remove(pathFile)
-    if err != nil {
-        return fmt.Errorf("failed to remove original file: %s", err)
-    }
-    return nil
-}
-
-func SaveToFile(destPath, content string) {
-	// Open the file for writing
-	file, err := os.OpenFile(destPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer file.Close()
-	// Write data to the file
-	_, err = file.WriteString(content)
-	if err != nil {
-		log.Fatal(err)
-	}	
-	if err != nil {
-		fmt.Println("Error saving file:", err)
-		return
-	}
 }

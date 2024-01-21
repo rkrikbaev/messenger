@@ -3,7 +3,12 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"log"
+	"os"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 // // Предположим, что data - это словарь, полученный от ParseSelectedFields
@@ -76,4 +81,52 @@ func GetValidPrefix(fileName string, prefixes []string) (string, bool) {
         }
     }
     return "", false
+}
+
+func SaveToFile(destPath, content string) {
+	// Open the file for writing
+	file, err := os.OpenFile(destPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+	// Write data to the file
+	_, err = file.WriteString(content)
+	if err != nil {
+		log.Fatal(err)
+	}	
+	if err != nil {
+		fmt.Println("Error saving file:", err)
+		return
+	}
+}
+
+
+func MoveFile(pathFile, pathTo string) error {    
+	inputFile, err := os.Open(pathFile)
+    if err != nil {
+        return fmt.Errorf("couldn't open source file: %s", err)
+    }
+    outputFile, err := os.Create(pathTo)
+    if err != nil {
+        inputFile.Close()
+        return fmt.Errorf("couldn't open dest file: %s", err)
+    }
+    defer outputFile.Close()
+    _, err = io.Copy(outputFile, inputFile)
+    inputFile.Close()
+    if err != nil {
+        return fmt.Errorf("writing to output file failed: %s", err)
+    }
+    // The copy was successful, so now delete the original file
+    err = os.Remove(pathFile)
+    if err != nil {
+        return fmt.Errorf("failed to remove original file: %s", err)
+    }
+    return nil
+}
+
+func GenerateRandomString() string {
+	uuid := uuid.New()
+	return uuid.String()
 }
