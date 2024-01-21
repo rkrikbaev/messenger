@@ -44,9 +44,9 @@ import (
 	"github.com/joho/godotenv"
 	_ "github.com/mattn/go-sqlite3"
 
-	"main/filelogger"
-	"main/httplogger"
-	"main/utils"
+	"main/modules/filelogger"
+	"main/modules/httplogger"
+	"main/modules/utils"
 )
 
 type Event struct {
@@ -189,8 +189,8 @@ var (
 	EventRecordDate time.Time
 	events []map[string]interface{}
 	FilesDirPath string
-	extension string
-	mailReceiver string
+	// extension string
+	// mailReceiver string
 	db     *sql.DB
 	Events Event
 	
@@ -204,11 +204,6 @@ var (
 	certPassword string
 	randomUUID string
 	location *time.Location
-	keyMap = map[string]string{
-		"ayraq_dev1.mass.value": "407001_mass",
-		"ayraq_dev2.level.value": "407002",
-		"ayraq_dev3.level.value": "407003",
-	}
 	logOver = "file"
 	servers = []string{"localhost"}
 )
@@ -234,7 +229,7 @@ func main() {
 	serviceId = os.Getenv("serviceId")
 	senderId = os.Getenv("senderId")
 	senderPassword = os.Getenv("senderPassword")
-	mailReceiver = os.Getenv("mailReceiver")
+	// mailReceiver = os.Getenv("mailReceiver")
 
 	logOver = os.Getenv("logOver")
 	servers = strings.Split(os.Getenv("httpServers"),",")
