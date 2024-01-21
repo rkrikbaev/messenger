@@ -11,11 +11,17 @@
 //Резервуар Жаркум - 1   407008
 //Резервуар Жаркум - 2   407009
 
+// Type1Events = []string{"407001","407002","407003"}
+// Type2Events = []string{"407004","407005","407006","407007","407008","407009"}
+// Type1Params = []string{"datetime","density","massflowbegin","massflowend","mass"}
+// Type2Params = []string{"datetime","density","volume","temperature","tankLevel","mass"}
+
 package main
 
 import (
 	"bytes"
 	"crypto/tls"
+
 	// "context"
 	"database/sql"
 	"io"
@@ -23,29 +29,25 @@ import (
 	"path/filepath"
 	"unicode"
 
-	// "database/sql"
-	"encoding/csv"
 	"encoding/json"
 
 	"fmt"
-	// "io"
-	"io/ioutil"
-	// "log"
 	"net/http"
-	// "net/smtp"
 	"os"
 	"path"
 
-	"reflect"
+	// "reflect"
 	"strings"
 	"time"
 
-	"github.com/gokalkan/gokalkan"
+	// "github.com/gokalkan/gokalkan"
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	_ "github.com/mattn/go-sqlite3"
-	httplogger "httpLogger"
-	filelogger "fileLogger"
+
+	"main/filelogger"
+	"main/httplogger"
+	"main/utils"
 )
 
 type Event struct {
@@ -60,7 +62,6 @@ type Event struct {
 const (
 	StateTable = "RESPONSE"
 	XMLDocumentTable = "DOCUMENTS"
-	CSVTimeFormat = "02.01.2006"
 	EventTimeFormat = "2006-01-02T15:04:05.000-07:00"
 	ip = "195.12.113.29"
 	port = "80"
@@ -90,7 +91,7 @@ const (
 						"temperature": 0,
 						"density": 0,
 						"volume": 0,
-						"tenkLevel": 0,
+						"tankLevel": 0,
 						"mass": 0
 					},
 					{
@@ -102,7 +103,7 @@ const (
 						"temperature": 0,
 						"density": 0,
 						"volume": 0,
-						"tenkLevel": 0,
+						"tankLevel": 0,
 						"mass": 0
 					},
 					{
@@ -128,7 +129,7 @@ const (
 						"temperature": 0,
 						"density": 0,
 						"volume": 0,
-						"tenkLevel": 0,
+						"tankLevel": 0,
 						"mass": 0
 					},
 					{
@@ -140,7 +141,7 @@ const (
 						"temperature": 0,
 						"density": 0,
 						"volume": 0,
-						"tenkLevel": 0,
+						"tankLevel": 0,
 						"mass": 0
 					},
 					{
@@ -166,7 +167,7 @@ const (
 						"temperature": 0,
 						"density": 0,
 						"volume": 0,
-						"tenkLevel": 0,
+						"tankLevel": 0,
 						"mass": 0
 					},
 					{
@@ -178,7 +179,7 @@ const (
 						"temperature": 0,
 						"density": 0,
 						"volume": 0,
-						"tenkLevel": 0,
+						"tankLevel": 0,
 						"mass": 0
 					}
 				]`
@@ -193,20 +194,24 @@ var (
 	mailReceiver string
 	db     *sql.DB
 	Events Event
-	// allevents = []string{"407001","407002","407003", "407004","407005","407006","407007","407008","407009"}
+	
 	serviceId string
 	senderId string
 	senderPassword string
-	// Type1Events = []string{"407001","407002","407003"}
-	// Type2Events = []string{"407004","407005","407006","407007","407008","407009"}
-	// Type1Params = []string{"datetime","density","massflowbegin","massflowend","mass"}
-	// Type2Params = []string{"datetime","density","volume","temperature","tankLevel","mass"}
+
 	cwd = ""
 	dbPath string
 	certPath string
 	certPassword string
 	randomUUID string
 	location *time.Location
+	keyMap = map[string]string{
+		"ayraq_dev1.mass.value": "407001_mass",
+		"ayraq_dev2.level.value": "407002",
+		"ayraq_dev3.level.value": "407003",
+	}
+	logOver = "file"
+	servers = []string{"localhost"}
 )
 
 func main() {
@@ -214,13 +219,13 @@ func main() {
 	fmt.Println("Start")
 	cwd, _ = os.Getwd()
 	// cwd = "/Users/rustamkrikbayev/projects/parser/app"
-	dbPath = path.Join(cwd, "/db/", dbname)
+	dbPath = path.Join(cwd, "./app/db/", dbname)
 	db, err = sql.Open("sqlite3", dbPath)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer db.Close()
-	env := path.Join(cwd, "app.env")
+	env := path.Join(cwd, "./app/app.env")
 	err = godotenv.Load(env)
 	if err != nil {
 		fmt.Println("error parse env file: ", env)
@@ -231,6 +236,10 @@ func main() {
 	senderId = os.Getenv("senderId")
 	senderPassword = os.Getenv("senderPassword")
 	mailReceiver = os.Getenv("mailReceiver")
+
+	logOver = os.Getenv("logOver")
+	servers = strings.Split(os.Getenv("httpServers"),",")
+
 	err = json.Unmarshal([]byte(jsonData), &events)
 	if err != nil {
 		fmt.Println("Error parsing JSON:", err)
@@ -247,12 +256,24 @@ func main() {
 func run() {
 	var err error
 	for {
-		
-		fmt.Println("LogFiles")
-		err = LogFiles(events)
-		if err != nil {
-			fmt.Println("Error when log Data:", err)
+		if logOver == "file" {
+			fmt.Println("LogFiles")
+			err = LogFiles()
+			if err != nil {
+				fmt.Println("Error when log Data:", err)
+			}
 		}
+
+		if logOver == "http" {
+			fmt.Println("LogFiles")
+			for _, server:= range servers {
+				err = logHttp(server)
+				if err != nil {
+					fmt.Println("Error when log Data:", err)
+				}
+			}
+		}
+
 		fmt.Print("processEvent")
 		err = processEvent()
 		if err != nil {
@@ -262,14 +283,59 @@ func run() {
 	}
 }
 
+// -----------------------Log data from Http server--------------
+
+func logHttp(address string) error {
+	
+	url := fmt.Sprintf("http://%s:8765/tags",address)
+
+	jsonData, err := httpclient.FetchData(url)
+	if err != nil {
+		log.Fatalf("Error fetching data: %s", err)
+	}
+
+	data, err := utils.ParseFields(jsonData)
+	if err != nil {
+		log.Fatalf("Error parsing selected fields: %s", err)
+	}
+
+    replacements := map[string]string{
+        "ayraq_dev1.mass": "400703.mass",
+        // Добавьте дополнительные замены здесь
+    }
+
+    replacedData := utils.ReplaceKeys(data, replacements)
+	var values []string
+	var columns []string
+	var eventid string
+    for key, value := range replacedData {
+        log.Printf("%s: %f\n", key, value)
+		eventid = strings.Split(key, ".")[0]
+		column := strings.Split(key, ".")[1]
+		values = append(values, fmt.Sprintf("%f", value))
+		columns = append(columns, column)
+    }
+
+	fmt.Println(eventid)
+	fmt.Println(columns)
+	fmt.Println(values)
+
+	err = InsertDataIntoDB(eventid, columns, values, "")
+	if err != nil {
+		fmt.Println("Error when insert into db: ", values)
+	}
+
+	return nil
+}
+
+
 //------------------------Log data from CSV files
 
 func LogFiles() error {
-    path := path.Join(cwd, "/csv_data/")
+    path := path.Join(cwd, "./app/csv_data/")
 	validPrefixes := []string{"407001","407002","407003", "407004","407005","407006","407007","407008","407009"}
-    expectedHeaders := []string{"density", "massflowbegin", "massflowend", "mass", "datetime","volume","temperature","tankLevel"}
 
-	files, err := ioutil.ReadDir(path)
+	files, err := os.ReadDir(path)
     if err != nil {
         return err
     }
@@ -278,129 +344,30 @@ func LogFiles() error {
         fileName := file.Name()
 
         if !file.IsDir() && strings.HasSuffix(fileName, ".csv") {
-            eventid, isValid := getValidPrefix(fileName, validPrefixes)
+            eventid, isValid := utils.GetValidPrefix(fileName, validPrefixes)
             if isValid {
                 pathFile := filepath.Join(path, fileName)
 
 				//parse file to list
-				err, columns, d = ParseAndPrepareData(fileName)
+				columns, values, err := filelogger.ParseAndPrepareData(pathFile)
 				if err != nil {
 					fmt.Println("Error when parse file: ", fileName)
 				}
-
-				err = LogData(eventid, columns, d, "")
+				fmt.Println(eventid)
+				fmt.Println(columns)
+				fmt.Println(values)
+				err = InsertDataIntoDB(eventid, columns, values, "")
 				if err != nil {
 					continue
 				}
-				pathTo := fmt.Sprintf("%s/saved/%s",path,filename)
+				pathTo := fmt.Sprintf("%s/saved/%s",path,fileName)
+				fmt.Println(pathTo)
 				MoveFile(pathFile, pathTo)
 			}
 		}
 	}
 	return err
-}
-
-func ParseAndPrepareData(pathFile string) error, []string{}, []string{} {
-
-	// Чтение и обработка cvs файла
-	err, headers, records := ReadCSVFile(pathFile)
-	if err != nil {
-		fmt.Printf("Cannot read file: %s\n", pathFile)
-		continue
-	}
-
-	dtValue := data[0][0]
-	
-	dt, err := time.Parse(CSVTimeFormat, dtValue)
-	if err != nil {
-		fmt.Printf("Error parsing datetime in file: %s\n", err)
-		continue
-	}
-
-	values := data[0]
-	values[0] = ConverToEventDate(EventTimeFormat, dt)
-
-	return err, headers, values
-}				
-
-// ReadCSVFile reads the data from the provided CSV file and returns a list of Data.
-func ReadCSVFile(pathFile string) (error, []string, [][]string) {
-	// Open the CSV file
-	file, err := os.Open(pathFile)
-	if err != nil {
-		return nil, fmt.Errorf("error opening CSV file: %w", err)
-	}
-	defer file.Close()
-
-	// Create a CSV reader
-	reader := csv.NewReader(file)
-    reader.Comma = ','
-
-    headers, err := reader.Read() // Читаем только заголовки
-    if err != nil {
-        return nil, fmt.Errorf("unable to read the CSV file headers: %v", err)
-    }
-
-	// Read the CSV records
-	records, err := reader.ReadAll()
-	if err != nil {
-		return nil, fmt.Errorf("error reading CSV records: %w", err)
-	}
-
-	return err, headers, records
-}
-
-func hasValidPrefix(fileName string, prefixes []string) bool {
-    // Получение префикса из имени файла
-    prefix := strings.Split(fileName, "_")[0]
-
-    for _, validPrefix := range prefixes {
-        if prefix == validPrefix {
-            return true
-        }
-    }
-    return false
-}
-
-// func LogDataFromFile(events []map[string]interface{}) error {
-// 	path := path.Join(cwd, "/csv_data/")
-// 	today := time.Now()
-// 	i := 0
-// 	for i < 7 {
-// 		newdt := today.AddDate(0,0,i-7).Format(CSVTimeFormat)
-// 		fmt.Println(newdt)
-// 		for _, event := range events {
-// 			eventid := event["id"].(string)
-// 			filename := fmt.Sprintf("%s_%s.csv", eventid, newdt)
-// 			pathFile := fmt.Sprintf("%s/%s", path, filename)
-// 			data, err := ReadCSVFile(pathFile)
-// 			if err != nil {
-// 				fmt.Printf("Can not read file: %s", pathFile)
-// 				continue
-// 			}
-// 			var columns []string
-// 			if findString(Type1Events, eventid) {
-// 				columns = Type1Params
-// 			} else if findString(Type2Events, eventid)  { 
-// 				columns = Type2Params
-// 			}
-
-// 			dtString :=data[0][0]
-// 			values := data[0]
-// 			dt, _ := time.Parse(CSVTimeFormat, dtString)
-// 			values[0] = ConverToEventDate(EventTimeFormat, dt)
-// 			err = LogData(eventid, columns, values, "")
-// 			if err != nil {
-// 				continue
-// 			}
-// 			pathTo := fmt.Sprintf("%s/saved/%s",path,filename)
-// 			MoveFile(pathFile, pathTo)
-// 		}
-// 		i++	
-// 	}
-// 	return nil
-// }
-
+}			
 
 //------------------------Prepare XML docement
 func processEvent() error {
@@ -464,7 +431,7 @@ func createDocumentXML(existEventDate string) (error) {
 			`<ns2:SendMessage xmlns:ns2="http://bip.bee.kz/SyncChannel/v10/Types"> <request> <requestInfo> <messageId>%s</messageId> <serviceId>%s</serviceId> <messageDate>%s</messageDate> <sender> <senderId>%s</senderId> <password>%s</password> </sender> </requestInfo> <requestData> <data xmlns:cs="http://message.persistence.interactive.nat" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="cs:Request">%s</data> </requestData> </request> </ns2:SendMessage>`,
 			randomstring, serviceId, todayDate.Format(EventTimeFormat), senderId, senderPassword, eventData))
 		xmlString := xmlBuffer.String()
-		err = LogData("DOCUMENTS", []string{"document", "datetime"}, []string{xmlString, eventDate}, "STDBY")
+		err = InsertDataIntoDB("DOCUMENTS", []string{"document", "datetime"}, []string{xmlString, eventDate}, "STDBY")
 		if err != nil {
 			fmt.Print(err)
 		}
@@ -574,30 +541,30 @@ func SendMessage(xmlstring, eventDate string) (error) {
 	// для теста
 	// opts := gokalkan.OptsTest
 
-	opts := gokalkan.OptsProd
-	cli, err := gokalkan.NewClient(opts...)
+	// opts := gokalkan.OptsProd
+	// cli, err := gokalkan.NewClient(opts...)
 	if err != nil {
 		fmt.Print(fmt.Sprintf("ERROR, new kalkan client create error: %s", err))
 		return err
 	}
-	defer cli.Close()
+	// defer cli.Close()
 
 	//sign message
-	randomUUID = generateRandomString()
-	err = cli.LoadKeyStore(certPath, certPassword)
+	// randomUUID = generateRandomString()
+	// // err = cli.LoadKeyStore(certPath, certPassword)
 	if err != nil {
 		return err
 	}
-	message, err := cli.SignWSSE(xmlstring, fmt.Sprintf("id-%s", randomUUID))
-	// message := "uuuuuuuuuuuuuuu"
-	fmt.Println(randomUUID)
-	fmt.Println(message)
+
+	// message, err := cli.SignWSSE(xmlstring, fmt.Sprintf("id-%s", randomUUID))
+	message := "uuuuuuuuuuuuuuu"
+//	
+	// fmt.Println(randomUUID)
+	// fmt.Println(message)
 
 	destPath := fmt.Sprintf("%s/xml_data/message_%s.xml",cwd,eventDate)
 	SaveToFile(destPath, message)
 
-	// timeout := 10 * time.Second // Пример: таймаут 10 секунд
-	// err = sendRequest(ip, port, message, timeout)
 	err = sendRequest(message)
 	if err != nil {
 		fmt.Println("Error creating request:", err)
@@ -638,7 +605,7 @@ func sendRequest(data string) error {
 	}
 	defer res.Body.Close()
 
-	body, err := ioutil.ReadAll(res.Body)
+	body, err := io.ReadAll(res.Body)
 	if err != nil {
 	fmt.Println(err)
 	return err
@@ -646,80 +613,6 @@ func sendRequest(data string) error {
 	fmt.Println(string(body))
 	return nil
 }
-
-// func sendRequest(ip, port, message string, timeout time.Duration) ([]byte, error) {
-//     url := fmt.Sprintf("https://%s/bip-sync-wss-gost/", ip)
-//     method := "POST"
-//     payload := strings.NewReader(message)
-
-//     client := &http.Client{}
-//     ctx, cancel := context.WithTimeout(context.Background(), timeout)
-//     defer cancel() // Освобождаем ресурсы контекста после выполнения функции
-    
-//     req, err := http.NewRequestWithContext(ctx, method, url, payload)
-//     if err != nil {
-//         fmt.Println("Error creating request:", err)
-//         return nil, err
-//     }
-//     req.Header.Set("Content-Type", "text/xml; charset=utf-8")
-
-//     res, err := client.Do(req)
-//     if err != nil {
-//         fmt.Println("Error making HTTP request:", err)
-//         return nil, err
-//     }
-//     defer res.Body.Close()
-
-//     if res.StatusCode != http.StatusOK {
-//         fmt.Printf("Received non-success status code: %d\n", res.StatusCode)
-//         return nil, fmt.Errorf("non-success status code: %d", res.StatusCode)
-//     }
-
-//     responseBody, err := ioutil.ReadAll(res.Body)
-//     if err != nil {
-//         fmt.Println("Error reading response body:", err)
-//         return nil, err
-//     }
-
-//     fmt.Println("Response Body:", string(responseBody))
-//     return responseBody, nil
-// }
-
-
-
-// func sendRequest(ip, port, message string) (error) {
-
-// 	// Set the URL and HTTP method
-// 	url := fmt.Sprintf("http://%s:%s/bip-sync-wss-gost/", ip, port)
-// 	method := "POST"
-// 	payload := strings.NewReader(message)
-
-// 	// Create a request with the SOAP message
-// 	client := &http.Client {
-// 	}
-// 	req, err := http.NewRequest(method, url, payload)
-// 	if err != nil {
-// 		fmt.Println("Error creating request:", err)
-// 		return err 
-// 	}
-// 	// Set headers for the SOAP request
-// 	req.Header.Set("Content-Type", "text/xml; charset=utf-8")
-// 	// Make the HTTP request
-// 	res, err := client.Do(req)
-// 	if err != nil {
-// 		return err 
-// 	}
-// 	defer res.Body.Close()
-	
-// 	responseBody, err := ioutil.ReadAll(res.Body)
-// 	if err != nil {
-// 		return err 
-// 	}
-// 	responseString := string(responseBody)
-// 	fmt.Println("Response Body:", string(responseString))
-// 	return nil
-// }
-
 
 // Update status from STDBY to DONE
 func updateState(table, condition, state string) (error) {
@@ -783,7 +676,7 @@ func getFirstRecord(table string, filter []string) (map[string]string, error) {
 }
 
 // InsertData inserts data into the specified table in the SQLite database.
-func LogData(table string, EventParams []string, values []string, state string) error {
+func InsertDataIntoDB(table string, EventParams []string, values []string, state string) error {
 	var err error
 	columns := EventParams
 	columns = append(columns, "createdAtDate")
@@ -804,63 +697,63 @@ func LogData(table string, EventParams []string, values []string, state string) 
 	return nil
 }
 
-func findString(arr []string, target string) bool {
-	for _, s := range arr {
-		if s == target {
-			return true
-		}
-	}
-	return false
-}
+// func findString(arr []string, target string) bool {
+// 	for _, s := range arr {
+// 		if s == target {
+// 			return true
+// 		}
+// 	}
+// 	return false
+// }
 
 // List files in filder with specified extention
-func listFilesInDirectory(fullPath, extension string) ([]string, error) {
+// func listFilesInDirectory(fullPath, extension string) ([]string, error) {
 	
-	// Check if the directory exists
-	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-		fmt.Printf("Directory does not exist: %s\n", fullPath)
-		return nil, err
-		}
-	// List files
-	files, err := ioutil.ReadDir(fullPath)
-	if err != nil {
-		return nil, err
-	}
-	// Check if any file exist
-	if len(files) == 0 {
-		fmt.Printf("No files found in directory: %s\n", fullPath)
-		return nil, nil
-	}
+// 	// Check if the directory exists
+// 	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+// 		fmt.Printf("Directory does not exist: %s\n", fullPath)
+// 		return nil, err
+// 		}
+// 	// List files
+// 	files, err := ioutil.ReadDir(fullPath)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	// Check if any file exist
+// 	if len(files) == 0 {
+// 		fmt.Printf("No files found in directory: %s\n", fullPath)
+// 		return nil, nil
+// 	}
 
-	var filenames []string
-	for _, file := range files {
-		if filepath.Ext(file.Name()) == extension {
-			filenames = append(filenames, file.Name())
-		}
-	}
+// 	var filenames []string
+// 	for _, file := range files {
+// 		if filepath.Ext(file.Name()) == extension {
+// 			filenames = append(filenames, file.Name())
+// 		}
+// 	}
 
-	return filenames, nil
-}
+// 	return filenames, nil
+// }
 
 // Compare and return True if date1 after date2 else return False
-func date1_after_date2(dateStr1, dateStr2 string) (bool, error) {
+// func date1_after_date2(dateStr1, dateStr2 string) (bool, error) {
 	// Layout represents the format of the date string
 	// layout := "02/01/2006"
 
 	// Parse the date strings into time.Time events
-	date1, err := time.Parse(EventTimeFormat, dateStr1)
-	if err != nil {
-		return false, fmt.Errorf("error parsing date1: %w", err)
-	}
+// 	date1, err := time.Parse(EventTimeFormat, dateStr1)
+// 	if err != nil {
+// 		return false, fmt.Errorf("error parsing date1: %w", err)
+// 	}
 
-	date2, err := time.Parse(EventTimeFormat, dateStr2)
-	if err != nil {
-		return false, fmt.Errorf("error parsing date2: %w", err)
-	}
+// 	date2, err := time.Parse(EventTimeFormat, dateStr2)
+// 	if err != nil {
+// 		return false, fmt.Errorf("error parsing date2: %w", err)
+// 	}
 
-	// Compare the dates
-	return date1.After(date2), nil
-}
+// 	// Compare the dates
+// 	return date1.After(date2), nil
+// }
 
 // GetData fetches data from the specified table in the SQLite database and processes it.
 // It returns true if the operation is successful.
@@ -922,29 +815,25 @@ func putData(db *sql.DB, query string, values []string) error {
 func MoveFile(pathFile, pathTo string) error {    
 	inputFile, err := os.Open(pathFile)
     if err != nil {
-        return fmt.Errorf("Couldn't open source file: %s", err)
+        return fmt.Errorf("couldn't open source file: %s", err)
     }
     outputFile, err := os.Create(pathTo)
     if err != nil {
         inputFile.Close()
-        return fmt.Errorf("Couldn't open dest file: %s", err)
+        return fmt.Errorf("couldn't open dest file: %s", err)
     }
     defer outputFile.Close()
     _, err = io.Copy(outputFile, inputFile)
     inputFile.Close()
     if err != nil {
-        return fmt.Errorf("Writing to output file failed: %s", err)
+        return fmt.Errorf("writing to output file failed: %s", err)
     }
     // The copy was successful, so now delete the original file
     err = os.Remove(pathFile)
     if err != nil {
-        return fmt.Errorf("Failed removing original file: %s", err)
+        return fmt.Errorf("failed to remove original file: %s", err)
     }
     return nil
-}
-
-func ConverToEventDate(layout string, eventTime time.Time) (string) {
-	return time.Date(eventTime.Year(), eventTime.Month(), eventTime.Day(), 13, 0, 0, 0, eventTime.Location()).Format(EventTimeFormat)
 }
 
 func SaveToFile(destPath, content string) {
