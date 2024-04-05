@@ -1,0 +1,1 @@
+INSERT OR IGNORE INTO '407001' (datetime,density,massflowbegin,massflowend,mass,createdAtDate) VALUES ('2023-09-01T13:00:00.000+00:00',0,0,0,10,'2024-04-05T06:51:28.798+05:00')

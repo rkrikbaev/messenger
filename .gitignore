@@ -71,3 +71,4 @@ web/templates/dist/kendo/js/jszip.min.js
 web/templates/dist/kendo/js/kendo.all.min.js
 web/templates/dist/kendo/js/kendo.culture.ru-RU.min.js
 web/templates/dist/luxon/js/luxon.js
+src/__app.go

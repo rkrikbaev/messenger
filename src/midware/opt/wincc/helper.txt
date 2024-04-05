@@ -1,0 +1,18 @@
+Procedure
+Open the C editor of "Global Script" in the WinCC Explorer.
+Click on the "New Project Function" command in the "File" menu of the editor.
+Copy one of the example scripts below into the editor window. Click on  to compile the function.
+Click  to save the compiled, error-free function with the name "UAReadFromArchive".
+Proceed with the second script using the same procedure.
+Insert the "Application window" smart object from the object palette into the screen in the Graphics Designer. The application window serves as a diagnostic window for the scripts.
+In the "Window Contents" dialog , select the entry "Global Script" and select "GSC Diagnostics" as a template. Set all the properties to "yes" in the "Miscellaneous" tab in the properties of the application window.
+Create the "Read" and "Write" buttons with the "Button" object from the object palette under "Windows Objects".
+Right-click on the "Read" button and select the "Properties" menu item.
+Open the "Event" tab. Click "Mouse".
+At "Mouse click", right-click in the "Action" column and select "C-action". The "Edit action" window opens.
+In the editor window, click in the "OnClick" action between "{" and "}".
+Double-click on "UAReadFromArchive" in the "Project functions" directory in the navigation window.
+Click  and then "OK" at the bottom right. The example script is now integrated in the action for the mouse click on the button.
+Proceed with the "Write" button using the same procedure.
+Save the screen in Graphics Designer.
+Activate the example project for runtime.
