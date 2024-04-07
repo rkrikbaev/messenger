@@ -1,1 +1,1 @@
-module src/routes/filelogger
+module routes/filelogger

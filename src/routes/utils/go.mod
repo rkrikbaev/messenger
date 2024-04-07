@@ -1,4 +1,4 @@
-module src/routes/utils
+module routes/utils
 
 go 1.20
 

@@ -1,1 +1,1 @@
-module src/routes/httplogger
+module routes/httplogger
