@@ -21,13 +21,11 @@ package main
 import (
 	"bytes"
 	"crypto/tls"
-	"io/ioutil"
 
 	// "context"
 	"database/sql"
 	"io"
 	"log"
-	"path/filepath"
 	"unicode"
 
 	"encoding/json"
@@ -45,8 +43,6 @@ import (
 	"github.com/joho/godotenv"
 	_ "github.com/mattn/go-sqlite3"
 
-	"filelogger"
-	"httplogger"
 	"utils"
 )
 
@@ -200,13 +196,11 @@ var (
 	senderPassword string
 
 	cwd = ""
-	dbPath string
+
 	certPath string
 	certPassword string
 	randomUUID string
 	location *time.Location
-	logOver = "file"
-	servers = []string{"localhost"}
 )
 
 func main() {
@@ -214,18 +208,19 @@ func main() {
 	var err error
 	fmt.Println("Start")
 
-	env := path.Join(cwd, "./bin/app.env")
+	env := path.Join(cwd, "./.env")
 	err = godotenv.Load(env)
+	
 	if err != nil {
 		fmt.Println("error parse env file: ", env)
 	}
 	cwd, _ = os.Getwd()
 
 	dbPath := os.Getenv("db_path")
-	// cwd = "/Users/rustamkrikbayev/projects/parser/app"
-	// dbPath = path.Join(db_path, dbname)
 	fmt.Println(dbPath)
+
 	db, err = sql.Open("sqlite3", dbPath)
+	
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -237,9 +232,6 @@ func main() {
 	senderId = os.Getenv("senderId")
 	senderPassword = os.Getenv("senderPassword")
 	// mailReceiver = os.Getenv("mailReceiver")
-
-	logOver = os.Getenv("logOver")
-	servers = strings.Split(os.Getenv("httpServers"),",")
 
 	err = json.Unmarshal([]byte(jsonData), &events)
 	if err != nil {
@@ -257,23 +249,6 @@ func main() {
 func run() {
 	var err error
 	for {
-		if logOver == "file" {
-			fmt.Println("LogFiles")
-			err = LogFiles()
-			if err != nil {
-				fmt.Println("Error when log Data:", err)
-			}
-		}
-
-		if logOver == "http" {
-			fmt.Println("LogFiles")
-			for _, server:= range servers {
-				err = logHttp(server)
-				if err != nil {
-					fmt.Println("Error when log Data:", err)
-				}
-			}
-		}
 
 		fmt.Print("processEvent")
 		err = processEvent()
@@ -282,132 +257,6 @@ func run() {
 		}		
 		time.Sleep(600 * time.Second)
 	}
-}
-
-// -----------------------Log data from Http server--------------
-
-func logHttp(address string) error {
-	
-	url := fmt.Sprintf("http://%s:8765/tags",address)
-
-	jsonData, err := httplogger.FetchData(url)
-	if err != nil {
-		log.Fatalf("Error fetching data: %s", err)
-	}
-
-	data, err := utils.ParseFields(jsonData)
-	if err != nil {
-		log.Fatalf("Error parsing selected fields: %s", err)
-	}
-
-    replacements := map[string]string{
-        "ayraq_dev1.mass": "400703.mass",
-        // Добавьте дополнительные замены здесь
-    }
-
-    replacedData := utils.ReplaceKeys(data, replacements)
-	var values []string
-	var columns []string
-	var eventid string
-    for key, value := range replacedData {
-        log.Printf("%s: %f\n", key, value)
-		eventid = strings.Split(key, ".")[0]
-		column := strings.Split(key, ".")[1]
-		values = append(values, fmt.Sprintf("%f", value))
-		columns = append(columns, column)
-    }
-
-	fmt.Println(eventid)
-	fmt.Println(columns)
-	fmt.Println(values)
-
-	err = InsertDataIntoDB(eventid, columns, values, "")
-	if err != nil {
-		fmt.Println("Error when insert into db: ", values)
-	}
-
-	return nil
-}
-
-//------------------------Log data from CSV files
-
-// //------------------------Log CSV files
-// func LogDataFromFile(events []map[string]interface{}) error {
-// 	path := path.Join(cwd, "/csv_data/")
-// 	today := time.Now()
-// 	i := 0
-// 	for i < 14 {
-// 		newdt := today.AddDate(0,0,i-14).Format(CSVTimeFormat)
-// 		fmt.Println(newdt)
-// 		for _, event := range events {
-// 			eventid := event["id"].(string)
-// 			filename := fmt.Sprintf("%s_%s.csv", eventid, newdt)
-// 			pathFile := fmt.Sprintf("%s/%s", path, filename)
-// 			data, err := ReadCSVFile(pathFile)
-// 			if err != nil {
-// 				fmt.Printf("Can not read file: %s", pathFile)
-// 				continue
-// 			}
-// 			var columns []string
-// 			if findString(Type1Events, eventid) {
-// 				columns = Type1Params
-// 			} else if findString(Type2Events, eventid)  { 
-// 				columns = Type2Params
-// 			}
-// 			dtString :=data[0][0]
-// 			values := data[0]
-// 			dt, _ := time.Parse(CSVTimeFormat, dtString)
-// 			values[0] = ConverToEventDate(EventTimeFormat, dt)
-// 			err = LogData(eventid, columns, values, "")
-// 			if err != nil {
-// 				continue
-// 			}
-// 			pathTo := fmt.Sprintf("%s/saved/%s",path,filename)
-// 			MoveFile(pathFile, pathTo)
-// 		}
-// 		i++	
-		
-// 	}
-// 	return nil
-// }
-
-
-func LogFiles() error {
-    path := path.Join(cwd, "/csv_data/")
-		validPrefixes := []string{"407001","407002","407003", "407004","407005","407006","407007","407008","407009"}
-
-		files, err := ioutil.ReadDir(path)
-		if err != nil {
-			return err
-		}
-
-    for _, file := range files {
-        fileName := file.Name()
-
-        if !file.IsDir() && strings.HasSuffix(fileName, ".csv") {
-            eventid, isValid := utils.GetValidPrefix(fileName, validPrefixes)
-            if isValid {
-                pathFile := filepath.Join(path, fileName)
-
-				//parse file to list
-				columns, values, err := filelogger.ParseAndPrepareData(pathFile)
-				if err != nil {
-					fmt.Println("Error when parse file: ", fileName)
-				}
-				fmt.Println(eventid)
-				fmt.Println(columns)
-				fmt.Println(values)
-				err = InsertDataIntoDB(eventid, columns, values, "")
-				if err != nil {
-					continue
-				}
-				pathTo := fmt.Sprintf("%s/saved/%s",path,fileName)
-				fmt.Println(pathTo)
-				utils.MoveFile(pathFile, pathTo)
-			}
-		}
-	}
-	return err
 }		
 
 //------------------------Prepare XML docement
@@ -573,14 +422,13 @@ func generateXMLString(event map[string]interface{}, EventDate string) (string, 
 	xmlBuffer.WriteString("</events>")
 	return xmlBuffer.String(), nil
 }
+
 //------------------------Send SOAP message
 func SendMessage(xmlstring, eventDate string) (error) {
 	var err error
 	state := "FAIL"
 	table := "DOCUMENTS"
 	condition := fmt.Sprintf("datetime = '%s'", eventDate)
-	// для теста
-	// opts := gokalkan.OptsTest
 
 	opts := gokalkan.OptsProd
 	cli, err := gokalkan.NewClient(opts...)
@@ -740,8 +588,7 @@ func InsertDataIntoDB(table string, EventParams []string, values []string, state
 // GetData fetches data from the specified table in the SQLite database and processes it.
 // It returns true if the operation is successful.
 func getData(query string) ([]string, map[string]string, error) {
-	query1 := "SELECT * FROM DOCUMENTS"
-    rows, err := db.Query(query1)
+    rows, err := db.Query(query)
     if err != nil {
         log.Fatalf("Error querying data: %s", err)
     }
@@ -773,14 +620,16 @@ func getData(query string) ([]string, map[string]string, error) {
 
 // InsertData inserts data into the specified table in the SQLite database.
 func putData(db *sql.DB, query string, values []string) error {
-	fmt.Println("Query:", query)
-	query="INSERT OR IGNORE INTO '407001' (datetime,density,massflowbegin,massflowend,mass,createdAtDate) VALUES ('2023-09-01T13:00:00.000+00:00',0,0,0,10,'2024-04-05T06:51:28.798+05:00')"
+
 	data := make([]interface{}, len(values))
+
 	for i, v := range values {
 		data[i] = v
 	}
+
 	tx, err := db.Begin() // Start a transaction
-    if err != nil {
+
+	if err != nil {
         return fmt.Errorf("error beginning transaction: %w", err)
     }
     
