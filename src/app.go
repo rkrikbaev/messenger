@@ -44,6 +44,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 
 	"utils"
+	"dbsql"
 )
 
 type Event struct {
@@ -56,13 +57,9 @@ type Event struct {
 }
 
 const (
-	StateTable = "RESPONSE"
 	XMLDocumentTable = "DOCUMENTS"
 	EventTimeFormat = "2006-01-02T15:04:05.000-07:00"
-	ip = "195.12.113.29"
-	port = "80"
-	ReportTable = "REPORT"
-	// dbname = "db3.db"
+	timesleep = 600
 	jsonData = `[
 					{
 						"id": "407001",
@@ -189,6 +186,7 @@ var (
 	// extension string
 	// mailReceiver string
 	db     *sql.DB
+	url string
 	Events Event
 	
 	serviceId string
@@ -218,9 +216,10 @@ func main() {
 
 	dbPath := os.Getenv("db_path")
 	fmt.Println(dbPath)
-
-	db, err = sql.Open("sqlite3", dbPath)
 	
+
+	// Open database
+	db, err = sql.Open("sqlite3", dbPath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -231,8 +230,11 @@ func main() {
 	serviceId = os.Getenv("serviceId")
 	senderId = os.Getenv("senderId")
 	senderPassword = os.Getenv("senderPassword")
+	url = os.Getenv("isun_url")
+
 	// mailReceiver = os.Getenv("mailReceiver")
 
+	// Parse JSON
 	err = json.Unmarshal([]byte(jsonData), &events)
 	if err != nil {
 		fmt.Println("Error parsing JSON:", err)
@@ -255,7 +257,7 @@ func run() {
 		if err != nil {
 			fmt.Println("Error when processing Event:", err)
 		}		
-		time.Sleep(600 * time.Second)
+		time.Sleep(time.Duration(timesleep) * time.Second)
 	}
 }		
 
@@ -264,8 +266,12 @@ func processEvent() error {
 	var err error
 	// var eventDate string
 	// Try to find latest recordset with state STDBY
-	// And sebd it after 18:00
-	eventRecordSet, _ := getLastRecord("DOCUMENTS", []string{"state='STDBY'"})
+	// And sebd it after 17:00
+
+	// get last recordset with state STDBY
+	filter := []string{"state='STDBY'"}
+	eventRecordSet, _ := dbsql.Select(db, "DOCUMENTS", "DESC", 1, filter)
+
 	if len(eventRecordSet) > 0 {
 		date1 := time.Now().In(location)
 		date2 := time.Date(date1.Year(), date1.Month(), date1.Day(), 17,0,0,0, date1.Location())
@@ -282,7 +288,7 @@ func processEvent() error {
 	} else {
 		// Try to create XML document after 13:00 wyen process data come
 		fmt.Println("Collecting data...")
-		eventRecordSet, _ = getLastRecord("DOCUMENTS", nil)
+		eventRecordSet, _ = dbsql.Select(db, "DOCUMENTS", "ASC", 1, nil)
 		if len(eventRecordSet) > 0 {
 			existEventDate := eventRecordSet["datetime"]
 			err = createDocumentXML(existEventDate)
@@ -321,7 +327,9 @@ func createDocumentXML(existEventDate string) (error) {
 			`<ns2:SendMessage xmlns:ns2="http://bip.bee.kz/SyncChannel/v10/Types"> <request> <requestInfo> <messageId>%s</messageId> <serviceId>%s</serviceId> <messageDate>%s</messageDate> <sender> <senderId>%s</senderId> <password>%s</password> </sender> </requestInfo> <requestData> <data xmlns:cs="http://message.persistence.interactive.nat" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="cs:Request">%s</data> </requestData> </request> </ns2:SendMessage>`,
 			randomstring, serviceId, todayDate.Format(EventTimeFormat), senderId, senderPassword, eventData))
 		xmlString := xmlBuffer.String()
-		err = InsertDataIntoDB("DOCUMENTS", []string{"document", "datetime"}, []string{xmlString, eventDate}, "STDBY")
+		columns := []string{"document", "datetime"}
+		values := []string{xmlString, eventDate}
+		err = dbsql.Insert(db, "DOCUMENTS", columns, values, "STDBY")
 		if err != nil {
 			fmt.Print(err)
 		}
@@ -387,13 +395,16 @@ func generateXMLString(event map[string]interface{}, EventDate string) (string, 
 		return "", fmt.Errorf("event ID is not a string")
 	}
 	filter := []string{fmt.Sprintf("datetime = '%s'", EventDate)}
-	data, err := getFirstRecord(eventId, filter)
+	
+	//get first record with event ID
+	data, err := dbsql.Select(db, eventId, "ASC", 1, filter)
 	if err != nil {
 		return ``, err
 	}
 	if data == nil {
 		return "", nil
 	}
+	
 	datetime := data["datetime"]
 	EventRecordDate, _ = time.Parse(EventTimeFormat,datetime)
 	// create xml string
@@ -459,14 +470,17 @@ func SendMessage(xmlstring, eventDate string) (error) {
 	destPath := fmt.Sprintf("%s/xml_data/message_%s.xml",cwd,eventDate)
 	utils.SaveToFile(destPath, message)
 
+	columns := []string{"state", "sentMessageDate"}
+	values := []string{state, time.Now().Format(EventTimeFormat)}
+
 	err = sendRequest(message)
 	if err != nil {
 		fmt.Println("Error creating request:", err)
-		err = updateState(table, condition, state)
+		err = dbsql.Update(db, table, columns, values, condition, state)
 		return err 
 	}
 	state = "SUCCESS"
-	err = updateState(table, condition, state)
+	err = dbsql.Update(db, table, columns, values, condition, state)
 	if err != nil {
 		fmt.Println("Error update data after success send message", err)
 		return err 
@@ -476,15 +490,12 @@ return nil
 
 func sendRequest(data string) error {
 
-	url := "https://195.12.113.29/bip-sync-wss-gost/"
-	method := "POST"
-
 	payload := strings.NewReader(data)
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 	client := &http.Client {Transport: tr }
-	req, err := http.NewRequest(method, url, payload)
+	req, err := http.NewRequest("POST", url, payload)
 
 	if err != nil {
 	fmt.Println(err)
@@ -505,143 +516,5 @@ func sendRequest(data string) error {
 	return err
 	}
 	fmt.Println(string(body))
-	return nil
-}
-
-// Update status from STDBY to DONE
-func updateState(table, condition, state string) (error) {
-	var err error
-	columns := []string{"state", "sentMessageDate"}
-	values := []string{state, time.Now().Format(EventTimeFormat)}
-	var columnValuePairs []string
-	for i := range columns {
-		columnValuePairs = append(columnValuePairs, fmt.Sprintf(`%s = '%s'`, columns[i], values[i]))
-	}
-	// condition := fmt.Sprintf("datetime = '%s'", eventDate)
-	// UPDATE 'DOCUMENTS' SET state='SUCCESS' WHERE datetime = '2023-08-27T13:00:00.000+00:00'
-	query := fmt.Sprintf(`UPDATE '%s' SET %s WHERE (%s)`, table, strings.Join(columnValuePairs, ","), condition)
-	err = putData(db, query, values)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// --------------- work with database ---------------------
-// GetData fetches data from the specified table in the SQLite database and processes it.
-func getLastRecord(table string, filter []string) (map[string]string, error) {
-	var query string
-	// Construct the SQL query to fetch the last row from the specified table
-	if filter != nil {
-		query = fmt.Sprintf(`SELECT * FROM '%s' WHERE %s ORDER BY datetime DESC LIMIT 1`, table, strings.Join(filter, ","))
-	} else {
-		query = fmt.Sprintf("SELECT * FROM '%s' ORDER BY datetime DESC LIMIT 1", table)
-	}
-	fmt.Println(query)
-	// Query the database
-	_, data, err := getData(query)
-	if err != nil {
-		return nil, err
-	}
-	fmt.Println(data)
-	return data, nil
-}
-
-func getFirstRecord(table string, filter []string) (map[string]string, error) {
-	var query string
-	if filter != nil {
-		query = fmt.Sprintf(`SELECT * FROM '%s' WHERE %s ORDER BY datetime ASC LIMIT 1`, table, strings.Join(filter, ","))
-	} else {
-		query = fmt.Sprintf(`SELECT * FROM '%s' ORDER BY datetime ASC LIMIT 1`, table)
-	}
-	fmt.Println(query)
-	_, data, err := getData(query)
-	if err != nil {
-		return nil, err
-	}
-	fmt.Println(data)
-	return data, nil
-}
-
-// InsertData inserts data into the specified table in the SQLite database.
-func InsertDataIntoDB(table string, EventParams []string, values []string, state string) error {
-	columns := EventParams
-	columns = append(columns, "createdAtDate")
-	values = append(values, time.Now().Format(EventTimeFormat))
-	if table == "DOCUMENTS" {
-		columns = append(columns, "state")
-		values = append(values, state)
-	}
-	// Construct the SQL query for insertion
-	valuePlaceholders := strings.Repeat("?, ", len(columns)-1) + "?" // Repeat the "?" for placeholders
-	EventParamsString := strings.Join(columns, ",")
-	query := fmt.Sprintf("INSERT OR IGNORE INTO '%s' (%s) VALUES (%s)", table, EventParamsString, valuePlaceholders)
-	fmt.Println(query)
-	fmt.Println(values)
-	err := putData(db, query, values)
-	if err != nil {
-		log.Fatal(err)
-	}
-	return nil
-}
-
-// GetData fetches data from the specified table in the SQLite database and processes it.
-// It returns true if the operation is successful.
-func getData(query string) ([]string, map[string]string, error) {
-    rows, err := db.Query(query)
-    if err != nil {
-        log.Fatalf("Error querying data: %s", err)
-    }
-	defer rows.Close()
-	// Check if there is a row to scan
-	if !rows.Next() {
-		return nil, nil, nil
-	}
-	// Create a map to hold the scanned data
-	scannedData := make(map[string]string)
-	columns, _ := rows.Columns()
-	// Scan the row into the scannedData map
-	values := make([]interface{}, len(columns))
-	value := make([]interface{}, len(columns))
-	for i := range columns {
-		values[i] = &value[i]
-	}
-	err = rows.Scan(values...)
-	if err != nil {
-		log.Printf("Error scanning row: %s", err)
-		return nil, nil, err
-	}
-	// Populate the scanned data into the map
-	for i, column := range columns {
-		scannedData[column] = fmt.Sprint(*values[i].(*interface{}))
-	}
-	return columns, scannedData, nil
-}
-
-// InsertData inserts data into the specified table in the SQLite database.
-func putData(db *sql.DB, query string, values []string) error {
-
-	data := make([]interface{}, len(values))
-
-	for i, v := range values {
-		data[i] = v
-	}
-
-	tx, err := db.Begin() // Start a transaction
-
-	if err != nil {
-        return fmt.Errorf("error beginning transaction: %w", err)
-    }
-    
-    defer tx.Rollback() // Rollback the transaction in case of errors
-    
-    _, err = tx.Exec(query, data...)
-    if err != nil {
-        return fmt.Errorf("error executing query: %w", err)
-    }
-    
-    if err := tx.Commit(); err != nil {
-        return fmt.Errorf("error committing transaction: %w", err)
-    }
 	return nil
 }
