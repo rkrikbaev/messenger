@@ -234,8 +234,6 @@ func main() {
 
 	// mailReceiver = os.Getenv("mailReceiver")
 
-
-
 	// Parse JSON
 	err = json.Unmarshal([]byte(jsonData), &events)
 	if err != nil {
