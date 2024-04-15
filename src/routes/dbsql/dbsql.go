@@ -16,7 +16,7 @@ var (
 	EventTimeFormat = "2006-01-02T15:04:05.000-07:00"
 )
 
-func Update(db *sql.DB, table, columns, values []string, condition, state string) error {
+func Update(db *sql.DB, table string, columns, values []string, condition, state string) error {
 
 	var columnValuePairs []string
 	

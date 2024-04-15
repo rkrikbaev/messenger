@@ -57,13 +57,9 @@ type Event struct {
 }
 
 const (
-	StateTable = "RESPONSE"
 	XMLDocumentTable = "DOCUMENTS"
 	EventTimeFormat = "2006-01-02T15:04:05.000-07:00"
-	ip = "195.12.113.29"
-	port = "80"
-	ReportTable = "REPORT"
-	// dbname = "db3.db"
+	timesleep = 600
 	jsonData = `[
 					{
 						"id": "407001",
@@ -190,6 +186,7 @@ var (
 	// extension string
 	// mailReceiver string
 	db     *sql.DB
+	url string
 	Events Event
 	
 	serviceId string
@@ -219,9 +216,10 @@ func main() {
 
 	dbPath := os.Getenv("db_path")
 	fmt.Println(dbPath)
-
-	db, err = sql.Open("sqlite3", dbPath)
 	
+
+	// Open database
+	db, err = sql.Open("sqlite3", dbPath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -232,8 +230,13 @@ func main() {
 	serviceId = os.Getenv("serviceId")
 	senderId = os.Getenv("senderId")
 	senderPassword = os.Getenv("senderPassword")
+	url = os.Getenv("isun_url")
+
 	// mailReceiver = os.Getenv("mailReceiver")
 
+
+
+	// Parse JSON
 	err = json.Unmarshal([]byte(jsonData), &events)
 	if err != nil {
 		fmt.Println("Error parsing JSON:", err)
@@ -256,7 +259,7 @@ func run() {
 		if err != nil {
 			fmt.Println("Error when processing Event:", err)
 		}		
-		time.Sleep(600 * time.Second)
+		time.Sleep(time.Duration(timesleep) * time.Second)
 	}
 }		
 
@@ -266,7 +269,10 @@ func processEvent() error {
 	// var eventDate string
 	// Try to find latest recordset with state STDBY
 	// And sebd it after 17:00
-	eventRecordSet, _ := dbsql.Select(db, "DOCUMENTS", []string{"state='STDBY'"})
+
+	// get last recordset with state STDBY
+	filter := []string{"state='STDBY'"}
+	eventRecordSet, _ := dbsql.Select(db, "DOCUMENTS", "DESC", 1, filter)
 
 	if len(eventRecordSet) > 0 {
 		date1 := time.Now().In(location)
@@ -323,7 +329,9 @@ func createDocumentXML(existEventDate string) (error) {
 			`<ns2:SendMessage xmlns:ns2="http://bip.bee.kz/SyncChannel/v10/Types"> <request> <requestInfo> <messageId>%s</messageId> <serviceId>%s</serviceId> <messageDate>%s</messageDate> <sender> <senderId>%s</senderId> <password>%s</password> </sender> </requestInfo> <requestData> <data xmlns:cs="http://message.persistence.interactive.nat" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="cs:Request">%s</data> </requestData> </request> </ns2:SendMessage>`,
 			randomstring, serviceId, todayDate.Format(EventTimeFormat), senderId, senderPassword, eventData))
 		xmlString := xmlBuffer.String()
-		err = dbsql.Insert("DOCUMENTS", []string{"document", "datetime"}, []string{xmlString, eventDate}, "STDBY")
+		columns := []string{"document", "datetime"}
+		values := []string{xmlString, eventDate}
+		err = dbsql.Insert(db, "DOCUMENTS", columns, values, "STDBY")
 		if err != nil {
 			fmt.Print(err)
 		}
@@ -389,8 +397,9 @@ func generateXMLString(event map[string]interface{}, EventDate string) (string, 
 		return "", fmt.Errorf("event ID is not a string")
 	}
 	filter := []string{fmt.Sprintf("datetime = '%s'", EventDate)}
-
-	data, err := dbsql.Select(eventId, filter)
+	
+	//get first record with event ID
+	data, err := dbsql.Select(db, eventId, "ASC", 1, filter)
 	if err != nil {
 		return ``, err
 	}
@@ -469,11 +478,11 @@ func SendMessage(xmlstring, eventDate string) (error) {
 	err = sendRequest(message)
 	if err != nil {
 		fmt.Println("Error creating request:", err)
-		err = dbsql.Update(table, columns, values, condition, state)
+		err = dbsql.Update(db, table, columns, values, condition, state)
 		return err 
 	}
 	state = "SUCCESS"
-	err = dbsql.Update(table, condition, state)
+	err = dbsql.Update(db, table, columns, values, condition, state)
 	if err != nil {
 		fmt.Println("Error update data after success send message", err)
 		return err 
@@ -483,15 +492,12 @@ return nil
 
 func sendRequest(data string) error {
 
-	url := "https://195.12.113.29/bip-sync-wss-gost/"
-	method := "POST"
-
 	payload := strings.NewReader(data)
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 	client := &http.Client {Transport: tr }
-	req, err := http.NewRequest(method, url, payload)
+	req, err := http.NewRequest("POST", url, payload)
 
 	if err != nil {
 	fmt.Println(err)
