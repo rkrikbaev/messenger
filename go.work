@@ -5,4 +5,5 @@ use (
 	./src/routes/filelogger
 	./src/routes/httplogger
 	./src/routes/utils
+	./src/routes/postgresdb
 )

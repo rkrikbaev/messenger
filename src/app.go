@@ -21,161 +21,66 @@ package main
 import (
 	"bytes"
 	"crypto/tls"
-
-	// "context"
 	"database/sql"
+	"encoding/xml"
 	"io"
+	"io/ioutil"
 	"log"
+	// "reflect"
+	"strconv"
 	"unicode"
-
-	"encoding/json"
 
 	"fmt"
 	"net/http"
 	"os"
 	"path"
-
-	// "reflect"
 	"strings"
 	"time"
 
 	"github.com/gokalkan/gokalkan"
 	"github.com/joho/godotenv"
 	_ "github.com/mattn/go-sqlite3"
+	"gopkg.in/yaml.v2"
 
+	"postgresdb"
 	"utils"
-	"dbsql"
+
+	"github.com/fatih/structs"
 )
 
+type Background struct {
+	XMLName string `xml:"background"`
+	Items   []interface{}
+}
+
+// Event struct represents the structure of each device data
 type Event struct {
-	Id int
+	ID              string `yaml:"id"`
+	DeviceTypeID    int    `yaml:"deviceTypeId"`
+	OperationTypeID int    `yaml:"operationTypeId"`
+	DeviceNameID    int    `yaml:"deviceNameId"`
+	ProductTypeID   int    `yaml:"productTypeId"`
+	PipelineID      int    `yaml:"pipelineId,omitempty"`
+	Parameters      []string	`yaml:"parameters"`
+}
+
+// Devices struct represents the structure of the data file
+type Devices struct {
+	Data []Event
+}
+
+type Document struct {
+	ID int
 	Document string
 	EventDate string
-	CreatedAt string
+	Created string
 	MessageSent string
 	State string
 }
 
 const (
-	XMLDocumentTable = "DOCUMENTS"
+	recordsTable = "DOCUMENTS"
 	EventTimeFormat = "2006-01-02T15:04:05.000-07:00"
-	timesleep = 600
-	jsonData = `[
-					{
-						"id": "407001",
-						"deviceTypeId": 2,
-						"operationTypeId": 3,
-						"deviceNameId": 1,
-						"productTypeId": 1,
-						"pipelineId": 3,
-						"temperature": 0,
-						"density": 0,
-						"volume": 0,
-						"massflowbegin": 0,
-						"massflowend": 0,
-						"mass": 0
-					},
-					{
-						"id": "407004",
-						"deviceTypeId": 1,
-						"operationTypeId": 7,
-						"deviceNameId": 2,
-						"productTypeId": 1,
-						"temperature": 0,
-						"density": 0,
-						"volume": 0,
-						"tankLevel": 0,
-						"mass": 0
-					},
-					{
-						"id": "407005",
-						"deviceTypeId": 1,
-						"operationTypeId": 7,
-						"deviceNameId": 2,
-						"productTypeId": 1,
-						"temperature": 0,
-						"density": 0,
-						"volume": 0,
-						"tankLevel": 0,
-						"mass": 0
-					},
-					{
-						"id": "407002",
-						"deviceTypeId": 2,
-						"operationTypeId": 3,
-						"deviceNameId": 1,
-						"productTypeId": 1,
-						"pipelineId": 3,
-						"temperature": 0,
-						"density": 0,
-						"volume": 0,
-						"massflowbegin": 0,
-						"massflowend": 0,
-						"mass": 0
-					},
-					{
-						"id": "407006",
-						"deviceTypeId": 1,
-						"operationTypeId": 7,
-						"deviceNameId": 2,
-						"productTypeId": 1,
-						"temperature": 0,
-						"density": 0,
-						"volume": 0,
-						"tankLevel": 0,
-						"mass": 0
-					},
-					{
-						"id": "407007",
-						"deviceTypeId": 1,
-						"operationTypeId": 7,
-						"deviceNameId": 2,
-						"productTypeId": 1,
-						"temperature": 0,
-						"density": 0,
-						"volume": 0,
-						"tankLevel": 0,
-						"mass": 0
-					},
-					{
-						"id": "407003",
-						"deviceTypeId": 2,
-						"operationTypeId": 3,
-						"deviceNameId": 1,
-						"productTypeId": 1,
-						"pipelineId": 3,
-						"temperature": 0,
-						"density": 0,
-						"volume": 0,
-						"massflowbegin": 0,
-						"massflowend": 0,
-						"mass": 0
-					},
-					{
-						"id": "407008",
-						"deviceTypeId": 1,
-						"operationTypeId": 7,
-						"deviceNameId": 2,
-						"productTypeId": 1,
-						"temperature": 0,
-						"density": 0,
-						"volume": 0,
-						"tankLevel": 0,
-						"mass": 0
-					},
-					{
-						"id": "407009",
-						"deviceTypeId": 1,
-						"operationTypeId": 7,
-						"deviceNameId": 2,
-						"productTypeId": 1,
-						"temperature": 0,
-						"density": 0,
-						"volume": 0,
-						"tankLevel": 0,
-						"mass": 0
-					}
-				]`
 		)
 
 var (
@@ -183,22 +88,24 @@ var (
 	EventRecordDate time.Time
 	events []map[string]interface{}
 	FilesDirPath string
-	// extension string
-	// mailReceiver string
 	db     *sql.DB
+	DB_NAME = "postgres"
 	url string
 	Events Event
-	
+	devices Devices
 	serviceId string
 	senderId string
 	senderPassword string
 
 	cwd = ""
+	timesleep = 600
 
 	certPath string
 	certPassword string
 	randomUUID string
 	location *time.Location
+
+	hourSend = 17
 )
 
 func main() {
@@ -212,34 +119,62 @@ func main() {
 	if err != nil {
 		fmt.Println("error parse env file: ", env)
 	}
+
+	// Read YAML file
+	SETTINGS_FILE := os.Getenv("SETTINGS")
+	yamlFile, err := ioutil.ReadFile(SETTINGS_FILE)
+	if err != nil {
+		log.Fatalf("Error reading YAML file: %v", err)
+	}
+
+	// Unmarshal YAML data into a Devices struct
+	err = yaml.Unmarshal(yamlFile, &devices)
+	if err != nil {
+		log.Fatalf("Error unmarshalling YAML: %v", err)
+	}
+
 	cwd, _ = os.Getwd()
 
 	dbPath := os.Getenv("db_path")
 	fmt.Println(dbPath)
 	
+	DB_HOST:=os.Getenv("DB_HOST")
+	DB_PORT:=os.Getenv("DB_PORT")
+	DB_USER:=os.Getenv("DB_USER")
+	DB_PASSWORD:=os.Getenv("DB_PASSWORD") 
+	DB_NAME:=os.Getenv("DB_NAME")
 
-	// Open database
-	db, err = sql.Open("sqlite3", dbPath)
+	
+	db, err = postgresdb.Connect(DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer db.Close()
-
+	// set cert path
 	certPath = os.Getenv("certPath")
+	// set cert password
 	certPassword = os.Getenv("certPassword")
 	serviceId = os.Getenv("serviceId")
 	senderId = os.Getenv("senderId")
 	senderPassword = os.Getenv("senderPassword")
+	
+	// set url
 	url = os.Getenv("isun_url")
 
-	// mailReceiver = os.Getenv("mailReceiver")
+	// set time to sleep
+	s := os.Getenv("timesleep")
+    timesleep, err = strconv.Atoi(s)
+    if err != nil {
+        panic(err)
+    }
 
-	// Parse JSON
-	err = json.Unmarshal([]byte(jsonData), &events)
-	if err != nil {
-		fmt.Println("Error parsing JSON:", err)
-		return
-	}
+	// set hour to send message
+	h := os.Getenv("hourSendMessage")
+    timesleep, err = strconv.Atoi(h)
+    if err != nil {
+        panic(err)
+    }
+
+	// set location
 	location, err = time.LoadLocation("Asia/Almaty")
 	if err != nil {
 		fmt.Println("Ошибка загрузки часового пояса:", err)
@@ -270,11 +205,11 @@ func processEvent() error {
 
 	// get last recordset with state STDBY
 	filter := []string{"state='STDBY'"}
-	eventRecordSet, _ := dbsql.Select(db, "DOCUMENTS", "DESC", 1, filter)
+	eventRecordSet, _ := postgresdb.Select(db, DB_NAME, "messenger", recordsTable, []string{"document, datetime"}, "DESC", 1, filter)
 
 	if len(eventRecordSet) > 0 {
 		date1 := time.Now().In(location)
-		date2 := time.Date(date1.Year(), date1.Month(), date1.Day(), 17,0,0,0, date1.Location())
+		date2 := time.Date(date1.Year(), date1.Month(), date1.Day(), hourSend,0,0,0, date1.Location())
 		if date1.After(date2) {
 			DocumentXML := eventRecordSet["document"]
 			eventDate := eventRecordSet["datetime"]
@@ -287,27 +222,45 @@ func processEvent() error {
 		}
 	} else {
 		// Try to create XML document after 13:00 wyen process data come
-		fmt.Println("Collecting data...")
-		eventRecordSet, _ = dbsql.Select(db, "DOCUMENTS", "ASC", 1, nil)
-		if len(eventRecordSet) > 0 {
-			existEventDate := eventRecordSet["datetime"]
-			err = createDocumentXML(existEventDate)
-			if err != nil {
-				fmt.Println("Error when call createDocumentXML():", err)
-			}
+		err = createDocumentXML()
+		if err != nil {
+			fmt.Println("Error when call createDocumentXML():", err)
 		}
 	}
 	return nil
 }
 
-func createDocumentXML(existEventDate string) (error) {
-	randomstring := utils.GenerateRandomString()
+//------------------------Create XML docement
+// Create XML document for each day after last recordset
+func createDocumentXML() (error) {
+
+	var eventRecordSet map[string]string
+	var existEventDate string
 	var err error
+	var randomstring string
+
+	randomstring = utils.GenerateRandomString()
+
+	// Try to create XML document after 13:00 wyen process data come
+	// Collect data for each day after last recordset
+	fmt.Println("Collecting data...")
+	eventRecordSet, _ = postgresdb.Select(db, DB_NAME, "messenger", recordsTable, []string{"datetime"}, "ASC", 1, nil)
+
+
+	if len(eventRecordSet) > 0 {
+		existEventDate = eventRecordSet["datetime"]
+	} else {
+		return fmt.Errorf("No data in the database")
+	}
+
 	exDate, err := time.Parse(EventTimeFormat, existEventDate)
 	if err != nil {
-		return nil
+		return err
 	}
-	todayDate := time.Now()
+
+	var todayDate time.Time
+	todayDate = time.Now()
+	
 	for todayDate.After(exDate) {
 		newDate := exDate.AddDate(0, 0, 1)
 		exDate = newDate
@@ -315,11 +268,12 @@ func createDocumentXML(existEventDate string) (error) {
 		fmt.Print("Try to collect data for new XML document\n")
 		fmt.Print(eventDate)
 		
-		eventData, err := getEventData(eventDate)
+		eventData, err := getEventData(eventDate, devices)
 		if stringIsEmpty(eventData) {
 			continue
 		}
 		if err != nil {
+			fmt.Println("Error when call getEventData():", err)
 			continue
 		}
 		var xmlBuffer bytes.Buffer
@@ -327,11 +281,16 @@ func createDocumentXML(existEventDate string) (error) {
 			`<ns2:SendMessage xmlns:ns2="http://bip.bee.kz/SyncChannel/v10/Types"> <request> <requestInfo> <messageId>%s</messageId> <serviceId>%s</serviceId> <messageDate>%s</messageDate> <sender> <senderId>%s</senderId> <password>%s</password> </sender> </requestInfo> <requestData> <data xmlns:cs="http://message.persistence.interactive.nat" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="cs:Request">%s</data> </requestData> </request> </ns2:SendMessage>`,
 			randomstring, serviceId, todayDate.Format(EventTimeFormat), senderId, senderPassword, eventData))
 		xmlString := xmlBuffer.String()
-		columns := []string{"document", "datetime"}
-		values := []string{xmlString, eventDate}
-		err = dbsql.Insert(db, "DOCUMENTS", columns, values, "STDBY")
+		columns := []string{"document", "datetime", "collected"}
+		values := []string{xmlString, eventDate, time.Now().Format(EventTimeFormat)}
+		if recordsTable == "DOCUMENTS" {
+			columns = append(columns, "state")
+			values = append(values, "STDBY")
+		}
+
+		err = postgresdb.Insert(db, DB_NAME, "messenger", recordsTable, columns, values)
 		if err != nil {
-			fmt.Print(err)
+			fmt.Println("Error when call Insert():", err)
 		}
 		
 		time. Sleep(1 * time.Second)
@@ -354,93 +313,90 @@ func stringIsEmpty(String string) bool {
 	return isEmpty
 }
 
-func getEventData(eventDate string) (string, error) {
+func getEventData(eventDate string, objects Devices) (string, error) {
+
 	var eventDataArray []string
-	for _, event:= range events {
-		getEventData, err := generateXMLString(event, eventDate)
+	
+	for _, object := range objects.Data {
+
+		eventXMLString, err := generateXMLString(eventDate, object)
+		
 		if err != nil {
 			errMsg2 := fmt.Sprintf("Error generate XML with data): %s", err)
 			fmt.Println(errMsg2)
 			return "", err
 		}
-		if stringIsEmpty(getEventData) {
+
+		if stringIsEmpty(eventXMLString) {
 			fmt.Printf("Empty string for: %s", eventDate)
 			return "", nil
 		} else {
-			eventDataArray = append(eventDataArray, getEventData)
+			eventDataArray = append(eventDataArray, eventXMLString)
 		}
 	}
 	eventData := strings.Join(eventDataArray, " ")
 	return eventData, nil
 }
 
-func generateXMLString(event map[string]interface{}, EventDate string) (string, error) {
-	// get process data
-	excludeEventItems := map[string]bool{
-		"deviceTypeId":     true,
-		"operationTypeId":  true,
-		"productTypeId":    true,
-		"pipelineId":       true,
-		"deviceNameId":     true,
-	}
+// generateXMLString generates an XML string based on the provided EventDate and object.
+// It returns the generated XML string and an error, if any.
+// The EventDate parameter specifies the date of the event.
+// The object parameter contains the event details.
+// The generated XML string represents the event data in XML format.
+// If an error occurs during the generation process, the error is returned.
+func generateXMLString(EventDate string, object Event) (string, error) {
 
-	exludeDataItems := map[string]bool{
-		"ID":				true,
-		"createdAtDate":	true,
-		"datetime":			true,
-	}
+	s := &Event{
+		ID: object.ID,
+		DeviceTypeID: object.DeviceTypeID, 
+		OperationTypeID: object.OperationTypeID, 
+		DeviceNameID: object.DeviceNameID, 
+		ProductTypeID: object.ProductTypeID, 
+		PipelineID: object.PipelineID}
 
-	eventId, ok := event["id"].(string)
-	if !ok {
-		return "", fmt.Errorf("event ID is not a string")
-	}
-	filter := []string{fmt.Sprintf("datetime = '%s'", EventDate)}
-	
+	event := structs.Map(s)
+
 	//get first record with event ID
-	data, err := dbsql.Select(db, eventId, "ASC", 1, filter)
+	filter := []string{fmt.Sprintf("datetime = '%s'", EventDate)}
+	columns := object.Parameters
+	data, err := postgresdb.Select(db, DB_NAME, "logger", object.ID, columns, "ASC", 1, filter)
 	if err != nil {
 		return ``, err
 	}
 	if data == nil {
 		return "", nil
 	}
-	
+
+	// event datetime
 	datetime := data["datetime"]
 	EventRecordDate, _ = time.Parse(EventTimeFormat,datetime)
-	// create xml string
-	var xmlBuffer bytes.Buffer
-	xmlBuffer.WriteString("<events>")
-	xmlBuffer.WriteString(fmt.Sprintf("<id>%s</id>", eventId))
-	xmlBuffer.WriteString(fmt.Sprintf("<datetime>%s</datetime>", datetime))
-	// add static configuration 
-	for key, value := range event {
-		if !excludeEventItems[key] {
-			continue
-		}
-		xmlBuffer.WriteString(fmt.Sprintf("<%s>%s</%s>", key, fmt.Sprintf("%v", value), key))
+	
+	for k, v := range data {
+    event[k] = v
 	}
-	// add process values
-	for key, value := range data {
-		if exludeDataItems[key] {
-			continue
-		} else {
-			if value == "<nil>" {
-				value = "0"
-			}
-			xmlBuffer.WriteString(fmt.Sprintf("<%s>%s</%s>", key, value, key))
-		}
+
+	bk := Background{ Items: []interface{}{ map[string]interface{}{"events": &event } } }
+
+	// encode xml
+	enc := xml.NewEncoder(os.Stdout)
+	enc.Indent("", "\t")
+
+	err = enc.Encode(&bk)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
 	}
-	xmlBuffer.WriteString("</events>")
-	return xmlBuffer.String(), nil
+	
+	return "", nil
 }
 
 //------------------------Send SOAP message
 func SendMessage(xmlstring, eventDate string) (error) {
 	var err error
-	state := "FAIL"
-	table := "DOCUMENTS"
-	condition := fmt.Sprintf("datetime = '%s'", eventDate)
+	var state string
 
+	state = "FAIL"
+
+	// create new kalkan client
 	opts := gokalkan.OptsProd
 	cli, err := gokalkan.NewClient(opts...)
 	if err != nil {
@@ -462,29 +418,32 @@ func SendMessage(xmlstring, eventDate string) (error) {
 		fmt.Printf("ERROR, new cli.SignWSSE sign error: %s", err)
 		return err
 	}
-	// message := "uuuuuuuuuuuuuuu"
 	
 	fmt.Println(randomUUID)
-	// fmt.Println(message)
 
 	destPath := fmt.Sprintf("%s/xml_data/message_%s.xml",cwd,eventDate)
 	utils.SaveToFile(destPath, message)
-
-	columns := []string{"state", "sentMessageDate"}
-	values := []string{state, time.Now().Format(EventTimeFormat)}
-
+	
+	// send message
 	err = sendRequest(message)
+
 	if err != nil {
-		fmt.Println("Error creating request:", err)
-		err = dbsql.Update(db, table, columns, values, condition, state)
-		return err 
+		fmt.Println("Error when call sendRequest():", err)
+	} else {
+		state = "SUCCESS"
 	}
-	state = "SUCCESS"
-	err = dbsql.Update(db, table, columns, values, condition, state)
+
+	// update state
+	columns := []string{"state", "sent"}
+	values := []string{state, time.Now().Format(EventTimeFormat)}
+	filter := fmt.Sprintf("datetime = '%s'", eventDate)
+
+	err = postgresdb.Update(db, DB_NAME, "messenger", recordsTable, columns, values, filter, state)
 	if err != nil {
 		fmt.Println("Error update data after success send message", err)
-		return err 
+		return err
 	}
+
 return nil
 }
 

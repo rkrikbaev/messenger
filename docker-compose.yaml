@@ -1,41 +1,48 @@
 version: "3"
 services:
-  
-  modbus:
-    restart: always
-    build: 
-      context: modbus
-      dockerfile: Dockerfile
-    image: rkrikbaev/modbus-slave:latest
-    container_name: modbus-slave
-    stdin_open: true
-    tty: true
-    ports:
-      - 5020:5020
-    volumes:
-      - .\data:/app/data
-      - .\modbus\modbus_slave.py:/app/modbus_slave.py
-    command: "python modbus_slave.py"
-    depends_on:
-      - graber
 
-  graber:
+  logger:
     restart: always
-    build:
-      context: graber
-      dockerfile: Dockerfile      
-    image: rkrikbaev/web-graber:latest
-    container_name: web-graber
+    image: rkrikbaev/logger:v1.0.9
+    container_name: logger
     stdin_open: true
     tty: true
     volumes:
-      - .\data:/app/data
-      - .\graber\graber.py:/app/graber.py
-      - .\graber\config.py:/app/config.py
-    command: "python graber.py"
+      - ../csv_data:/app/csv_data
+    command: "./app"
+    depends_on:
+      - database
+    environment:
+      - DB_USER=postgres
+      - DB_PASSWORD=secret
+      - DB_NAME=postgres
+      - DB_HOST=database
+      - DB_PORT=5432
+      - DB_SSLMODE=disable
+      - DB_TIMEZONE=UTC
+      - CONTRACT_HOUR=12
+      - CSV_PATH=/app/csv_data
+      - DB_FILE_PATH=helper.sql
 
   restarter:
     image: docker:cli
     volumes: ["/var/run/docker.sock:/var/run/docker.sock"]
-    command: ["/bin/sh", "-c", "while true; do sleep 86400; docker restart web-graber; done"]
+    command: ["/bin/sh", "-c", "while true; do sleep 86400; docker restart logger; done"]
     restart: always
+
+  database:
+    image: postgres:latest
+    container_name: postgres-db
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=secret
+      - POSTGRES_DB=postgres
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports: 
+      - "5432:5432"
+
+volumes:
+  db_data:
+    driver: local
