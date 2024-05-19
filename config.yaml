@@ -6,34 +6,34 @@ settings:
     productTypeId: 1
     pipelineId: 3
     parameters:
-        - temperature,
-        - density,
-        - volume,
-        - massflowbegin,
-        - massflowend,
-        - mass,
+        - temperature
+        - density
+        - volume
+        - massflowbegin
+        - massflowend
+        - mass
   - id: 407004
     deviceTypeId: 1
     operationTypeId: 7
     deviceNameId: 2
     productTypeId: 1
     parameters:
-        - temperature,
-        - density,
-        - volume,
-        - tankLevel,
-        - mass,
+        - temperature
+        - density
+        - volume
+        - tankLevel
+        - mass
   - id: 407005
     deviceTypeId: 1
     operationTypeId: 7
     deviceNameId: 2
     productTypeId: 1
     parameters:
-        - temperature,
-        - density,
-        - volume,
-        - tankLevel,
-        - mass,
+        - temperature
+        - density
+        - volume
+        - tankLevel
+        - mass
   - id: 407002
     deviceTypeId: 2
     operationTypeId: 3
@@ -41,34 +41,34 @@ settings:
     productTypeId: 1
     pipelineId: 3
     parameters:
-        - temperature,
-        - density,
-        - volume,
-        - massflowbegin,
-        - massflowend,
-        - mass,
+        - temperature
+        - density
+        - volume
+        - massflowbegin
+        - massflowend
+        - mass
   - id: 407006
     deviceTypeId: 1
     operationTypeId: 7
     deviceNameId: 2
     productTypeId: 1
     parameters:
-        - temperature,
-        - density,
-        - volume,
-        - tankLevel,
-        - mass,
+        - temperature
+        - density
+        - volume
+        - tankLevel
+        - mass
   - id: 407007
     deviceTypeId: 1
     operationTypeId: 7
     deviceNameId: 2
     productTypeId: 1
     parameters:
-        - temperature,
-        - density,
-        - volume,
-        - tankLevel,
-        - mass,
+        - temperature
+        - density
+        - volume
+        - tankLevel
+        - mass
   - id: 407003
     deviceTypeId: 2
     operationTypeId: 3
@@ -76,31 +76,31 @@ settings:
     productTypeId: 1
     pipelineId: 3
     parameters:
-        - temperature,
-        - density,
-        - volume,
-        - massflowbegin,
-        - massflowend,
-        - mass,
+        - temperature
+        - density
+        - volume
+        - massflowbegin
+        - massflowend
+        - mass
   - id: 407008
     deviceTypeId: 1
     operationTypeId: 7
     deviceNameId: 2
     productTypeId: 1
     parameters:
-        - temperature,
-        - density,
-        - volume,
-        - tankLevel,
-        - mass,
+        - temperature
+        - density
+        - volume
+        - tankLevel
+        - mass
   - id: 407009
     deviceTypeId: 1
     operationTypeId: 7
     deviceNameId: 2
     productTypeId: 1
     parameters:
-        - temperature,
-        - density,
-        - volume,
-        - tankLevel,
-        - mass,
+        - temperature
+        - density
+        - volume
+        - tankLevel
+        - mass

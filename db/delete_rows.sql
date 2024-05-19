@@ -1,0 +1,7 @@
+DELETE FROM messenger."DOCUMENTS"
+WHERE "ID" IN (
+    SELECT "ID" 
+    FROM messenger."DOCUMENTS"
+    ORDER BY "ID" ASC
+    LIMIT 100
+);

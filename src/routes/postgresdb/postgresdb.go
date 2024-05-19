@@ -28,36 +28,30 @@ func Update(db *sql.DB, dbname string, schema string, table string, columns, val
 }
 
 // GetRecord fetches the last or first record from the specified table in the PostgreSQL database based on the provided parameters.
-func Select(db *sql.DB, dbname string, schema string, table string, columns []string, orderBy string, limit int, filter []string) (map[string]string, error) {
-    var query string
-    columnsStr := strings.Join(columns, ", ")
+func Select(db *sql.DB, dbname string, schema string, table string, columns []string, sorted string, order string, limit int, filter []string) (map[string]string, error) {
+    fmt.Println("Call postgresdb.Select()")
+	var query string
+    // columns = strings.Join(columns, ", ")
     if filter != nil {
-        query = fmt.Sprintf(`SELECT %s FROM %s."%s"."%s" WHERE %s ORDER BY datetime %s LIMIT %d`, columnsStr, dbname, schema, table, strings.Join(filter, ","), orderBy, limit)
+        query = fmt.Sprintf(`SELECT %s FROM %s."%s"."%s" WHERE %s ORDER BY %s %s LIMIT %d`, strings.Join(columns, ", "), dbname, schema, table, strings.Join(filter, ","), sorted, order, limit)
     } else {
-        query = fmt.Sprintf(`SELECT %s FROM %s."%s"."%s" ORDER BY datetime %s LIMIT %d`, columnsStr, dbname, schema, table, orderBy, limit)
+        query = fmt.Sprintf(`SELECT %s FROM %s."%s"."%s" ORDER BY %s %s LIMIT %d`, strings.Join(columns, ", "), dbname, schema, table, sorted, order, limit)
     }
-    fmt.Println(query)
     _, data, err := _get(db, query)
-    if err != nil {
-        return nil, err
-    }
-    fmt.Println(data)
+	if err != nil {
+		fmt.Println("Error when call Select():", err)
+		return nil, err
+	}
+	fmt.Println(query)
+	fmt.Println("Query executed successfully")
+	fmt.Println(data)
     return data, nil
 }
 
 // InsertData inserts data into the specified table in the PostgreSQL database.
 func Insert(db *sql.DB, dbname string, schema string, table string, columns []string, values []string) error {
-	// Add the createdAtDate column to the EventParams slice
-	// columns := EventParams
-	// columns = append(columns, "collected")
-	// collected := time.Now().Format(EventTimeFormat)
-	// fmt.Println(collected)
-	// values = append(values, collected)
+	fmt.Println("Call postgresdb.Insert()")
 
-	// if table == "DOCUMENTS" {
-	// 	columns = append(columns, "state")
-	// 	values = append(values, state)
-	// }
 	// Construct the SQL query for insertion
 	placeholders := make([]string, len(columns))
 	for i := range columns {
@@ -81,6 +75,7 @@ func Insert(db *sql.DB, dbname string, schema string, table string, columns []st
 // GetData fetches data from the specified table in the PostgreSQL database and processes it.
 // It returns true if the operation is successful.
 func _get(db *sql.DB, query string) ([]string, map[string]string, error) {
+	fmt.Println("Call postgresdb._get()")
 	rows, err := db.Query(query)
 	if err != nil {
 		log.Fatalf("Error querying data: %s", err)
@@ -124,9 +119,6 @@ func _put(db *sql.DB, query string, values []string) error {
 		data[i] = v
 	}
 
-	fmt.Println(query)
-	fmt.Println(values)
-
 	tx, err := db.Begin() // Start a transaction
 
 	if err != nil {
@@ -147,7 +139,7 @@ func _put(db *sql.DB, query string, values []string) error {
 }
 
 // ListSchemas lists all schemas in the PostgreSQL database.
-func listSchemas(db *sql.DB) ([]string, error) {
+func ListSchemas(db *sql.DB) ([]string, error) {
 	var schemas []string
 
 	rows, err := db.Query(`SELECT schema_name FROM information_schema.schemata`)
@@ -180,6 +172,74 @@ func Connect(dbname string, user string, password string, host string, port stri
 
 	return db, nil
 }
+
+func ListTables(db *sql.DB, dbname string, schema string) ([]string, error) {
+	var tables []string
+
+	query := fmt.Sprintf(`SELECT table_name FROM information_schema.tables WHERE table_schema = '%s'`, schema)
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var tableName string
+		if err := rows.Scan(&tableName); err != nil {
+			return nil, err
+		}
+		tables = append(tables, tableName)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return tables, nil
+}
+
+func FindDiff(db *sql.DB, tables []string) ([]string, error) {
+	fmt.Println("Call postgresdb.FindDiff()")
+	var query string
+	var result []string
+
+	// Создание строки с запросом
+	for i, table := range tables {
+		if i > 0 {
+			query += " INTERSECT "
+		}
+		query += fmt.Sprintf(`SELECT datetime FROM logger."%s"`, table)
+	}
+
+	query = fmt.Sprintf(`SELECT all_dates.datetime FROM ( %s ) AS all_dates
+		LEFT JOIN messenger."DOCUMENTS" ON all_dates.datetime = messenger."DOCUMENTS".event_dt
+		WHERE messenger."DOCUMENTS".event_dt IS NULL`, query)
+
+	// fmt.Print(query)
+	
+	// Выполнение запроса
+	rows, err := db.Query(query)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rows.Close()
+
+	// Обработка результатов
+	for rows.Next() {
+		var datetime string
+		if err := rows.Scan(&datetime); err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println("Find to work with datetime:", datetime)
+		result = append(result, datetime)
+	}
+	if err := rows.Err(); err != nil {
+		log.Fatal(err)
+	}
+	return result, nil
+}
+
+
+
 
 
 // func InitDB() (*sql.DB, error) {
