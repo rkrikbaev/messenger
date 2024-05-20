@@ -1,5 +1,28 @@
 version: "3"
+
 services:
+  messenger:
+    restart: always
+    image: rkrikbaev/messenger:v1.0.0
+    container_name: messenger
+    stdin_open: true
+    tty: true
+    volumes:
+      - ../xml_data:/app/xml_data
+    command: "./app"
+    depends_on:
+      - database
+    environment:
+      - DB_USER=postgres
+      - DB_PASSWORD=secret
+      - DB_NAME=postgres
+      - DB_HOST=database
+      - DB_PORT=5432
+      - DB_SSLMODE=disable
+      - DB_TIMEZONE=UTC
+      - CONTRACT_HOUR=12
+      - CSV_PATH=/app/csv_data
+      - DB_FILE_PATH=helper.sql
 
   logger:
     restart: always

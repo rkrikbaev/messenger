@@ -5,12 +5,18 @@ rm -rf /app/bin
 
 mkdir /app/bin
 
-go mod init test.go
+go mod init app.go
 go mod tidy
 
 go get github.com/joho/godotenv v1.5.1
 go get github.com/google/uuid
-go get github.com/lib/pq v1.10.0
+go get github.com/lib/pq v1.10.0 
+
+#  Install KalkanCrypt
+go get github.com/gokalkan/gokalkan
+source /app/sdk/production/install_production.sh
+cp /app/sdk/libkalkancryptwr-64.so.2.0.3 /usr/lib
+mv /usr/lib/libkalkancryptwr-64.so.2.0.3 /usr/lib/libkalkancryptwr-64.so
 
 cd /app/src
 

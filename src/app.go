@@ -22,10 +22,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
-	// "reflect"
 	"strconv"
-	// "unicode"
-
 	"fmt"
 	"net/http"
 	"os"
@@ -57,82 +54,6 @@ type Device struct {
 type Devices struct {
     Settings []Device
 }
-
-
-// // Define the Go struct to represent the XML structure
-// type Envelope struct {
-// 	XMLName xml.Name `xml:"http://schemas.xmlsoap.org/soap/envelope/ soap:Envelope"`
-// 	Header  Header   `xml:"http://schemas.xmlsoap.org/soap/envelope/ SOAP-ENV:Header"`
-// 	Body    Body     `xml:"http://schemas.xmlsoap.org/soap/envelope/ soap:Body"`
-// }
-
-// type Header struct {
-// 	Security Security `xml:"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd wsse:Security"`
-// }
-
-// type Security struct {
-// 	Signature Signature `xml:"http://www.w3.org/2000/09/xmldsig# ds:Signature"`
-// }
-
-// type Signature struct {
-// 	SignedInfo    SignedInfo `xml:"http://www.w3.org/2000/09/xmldsig# ds:SignedInfo"`
-// 	SignatureValue string     `xml:"http://www.w3.org/2000/09/xmldsig# ds:SignatureValue"`
-// 	KeyInfo       KeyInfo    `xml:"http://www.w3.org/2000/09/xmldsig# ds:KeyInfo"`
-// }
-
-// type SignedInfo struct {
-// 	CanonicalizationMethod CanonicalizationMethod `xml:"http://www.w3.org/2000/09/xmldsig# ds:CanonicalizationMethod"`
-// 	SignatureMethod        SignatureMethod        `xml:"http://www.w3.org/2000/09/xmldsig# ds:SignatureMethod"`
-// 	Reference              Reference              `xml:"http://www.w3.org/2000/09/xmldsig# ds:Reference"`
-// }
-
-// type CanonicalizationMethod struct {
-// 	Algorithm string `xml:"Algorithm,attr"`
-// }
-
-// type SignatureMethod struct {
-// 	Algorithm string `xml:"Algorithm,attr"`
-// }
-
-// type Reference struct {
-// 	URI        string           `xml:"URI,attr"`
-// 	Transforms Transforms       `xml:"http://www.w3.org/2000/09/xmldsig# ds:Transforms"`
-// 	DigestMethod DigestMethod    `xml:"http://www.w3.org/2000/09/xmldsig# ds:DigestMethod"`
-// 	DigestValue  string          `xml:"http://www.w3.org/2000/09/xmldsig# ds:DigestValue"`
-// }
-
-// type Transforms struct {
-// 	Transform Transform `xml:"http://www.w3.org/2000/09/xmldsig# ds:Transform"`
-// }
-
-// type Transform struct {
-// 	Algorithm string `xml:"Algorithm,attr"`
-// }
-
-// type DigestMethod struct {
-// 	Algorithm string `xml:"Algorithm,attr"`
-// }
-
-// type KeyInfo struct {
-// 	Id                   string                  `xml:"Id,attr"`
-// 	SecurityTokenReference SecurityTokenReference `xml:"http://www.w3.org/2000/09/xmldsig# wsse:SecurityTokenReference"`
-// }
-
-// type SecurityTokenReference struct {
-// 	Id              string   `xml:"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd Id,attr"`
-// 	KeyIdentifier   KeyIdentifier `xml:"http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd wsse:KeyIdentifier"`
-// }
-
-// type KeyIdentifier struct {
-// 	EncodingType string `xml:"EncodingType,attr"`
-// 	ValueType    string `xml:"ValueType,attr"`
-// 	Value        string `xml:",chardata"`
-// }
-
-// type Body struct {
-// 	WsuId string   `xml:"wsu:Id,attr"`
-// 	SendMessage SendMessage `xml:"http://bip.bee.kz/SyncChannel/v10/Types ns2:SendMessage"`
-// }
 
 type SendMessage struct {
 	XMLName xml.Name `xml:"ns2:SendMessage"`
@@ -166,10 +87,10 @@ type Data struct {
 	XMLNsCs string   `xml:"xmlns:cs,attr"`
 	XMLNsXsi string  `xml:"xmlns:xsi,attr"`
 	XsiType string   `xml:"xsi:type,attr"`
-	Events []Event 	 `xml:"events"`
+	Events []interface{} 	`xml:"events"`
 }
 
-type Event struct {
+type EventType1 struct {
 	ID              int     `xml:"id"`
 	DateTime        string  `xml:"datetime"`
 	DeviceTypeID    int     `xml:"deviceTypeId"`
@@ -179,6 +100,19 @@ type Event struct {
 	PipelineID      int     `xml:"pipelineId"`
 	MassFlowBegin   float64 `xml:"massflowbegin"`
 	MassFlowEnd     float64 `xml:"massflowend"`
+	Temperature     float64 `xml:"temperature"`
+	Density         float64 `xml:"density"`
+	Mass            float64 `xml:"mass"`
+	Volume          float64 `xml:"volume"`
+}
+
+type EventType2 struct {
+	ID              int     `xml:"id"`
+	DateTime        string  `xml:"datetime"`
+	DeviceTypeID    int     `xml:"deviceTypeId"`
+	OperationTypeID int     `xml:"operationTypeId"`
+	DeviceNameID    int     `xml:"deviceNameId"`
+	ProductTypeID   int     `xml:"productTypeId"`
 	Temperature     float64 `xml:"temperature"`
 	Density         float64 `xml:"density"`
 	Mass            float64 `xml:"mass"`
@@ -313,7 +247,7 @@ func run() {
 	
 	// run loop
 	for {
-		err = processEvent()
+		processEvent()
 		if err != nil {
 			fmt.Println("Error when processing Event:", err)
 		}		
@@ -322,12 +256,13 @@ func run() {
 }		
 
 //------------------------Prepare XML docement
-func processEvent() error {
+func processEvent() {
 
 	fmt.Println("Start processEvent()")
-	var err error
+	// var err error
 
 	date1 := time.Now().In(location)
+	fmt.Println("Current time:", date1)
 
 	if date1.Hour() > hour {
 		
@@ -336,7 +271,7 @@ func processEvent() error {
 
 		// send all available XML documents after 17:00
 		if len(record) > 0 {
-			err = SendDoc(record["document"], record["event_dt"])
+			err := SendDoc(record["document"], record["event_dt"])
 			if err != nil {
 				fmt.Println("Error when call SendMessage():", err)
 			}
@@ -347,8 +282,10 @@ func processEvent() error {
 	} else {
 
 		fmt.Println("Waiting...")
+
 		tables, _ := postgresdb.ListTables(db, DB_NAME,"logger")
 		fmt.Println("Tables:", tables)
+
 		dt, err := postgresdb.FindDiff(db, tables)
 		if err != nil {
 			fmt.Println("Error when call FindDiff():", err)
@@ -363,8 +300,8 @@ func processEvent() error {
 			}
 		}
 	}
-	return nil
 }
+
 
 //------------------------Create XML docement
 // Create XML document for each day after last recordset
@@ -384,45 +321,60 @@ func createDocument(event_dt string) (error) {
 
 	// Create the struct to represent the XML
 
-	// 		<ns2:SendMessage xmlns:ns2="http://bip.bee.kz/SyncChannel/v10/Types"> 
-	// 			<request> 
-	// 				<requestInfo> 
-	// 					<messageId>04e0ee99-407a-4b1e-a702-90230f9d7f8f</messageId> 
-	// 					<serviceId>ISUN_Service2</serviceId> 
-	// 					<messageDate>2024-01-18T18:13:25.583+06:00</messageDate> 
-	// 					<sender> <senderId>amangeldygas</senderId> 
-	// 					<password>Amangeldy2023</password> 
-	// 					</sender> 
-	// 				</requestInfo> 
-	// 				<requestData> 
-	// 					<data xmlns:cs="http://message.persistence.interactive.nat" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="cs:Request">
-	// 						<events>
-	//							<id>407001</id>
-	// 							<datetime>2024-01-11T13:00:00.000+00:00</datetime>
-	// 							<operationTypeId>3</operationTypeId>
-	// 							<productTypeId>1</productTypeId>
-	// 							<pipelineId>3</pipelineId>
-	// 							<deviceTypeId>2</deviceTypeId>
-	// 							<deviceNameId>1</deviceNameId>
-	// 							<density>716.1492</density>
-	// 							<volume>0</volume>
-	// 							<mass>80.46875</mass>
-	// 							<temperature>0</temperature>
-	// 							<massflowbegin>132856.1</massflowbegin>
-	// 							<massflowend>132936.6</massflowend>
-	// 						</events> 
-	// 						<events><id>407004</id><datetime>2024-01-11T13:00:00.000+00:00</datetime><productTypeId>1</productTypeId><deviceTypeId>1</deviceTypeId><operationTypeId>7</operationTypeId><deviceNameId>2</deviceNameId><temperature>0.669922</temperature><density>709.065</density><volume>106.7144</volume><tankLevel>124.9048</tankLevel><mass>75.66756</mass></events> 
-	// 						<events><id>407005</id><datetime>2024-01-11T13:00:00.000+00:00</datetime><deviceTypeId>1</deviceTypeId><operationTypeId>7</operationTypeId><deviceNameId>2</deviceNameId><productTypeId>1</productTypeId><temperature>0.242188</temperature><density>705.322</density><volume>52.64053</volume><tankLevel>61.60059</tankLevel><mass>37.12854</mass></events> 
-	// 						<events><id>407002</id><datetime>2024-01-11T13:00:00.000+00:00</datetime><deviceTypeId>2</deviceTypeId><deviceNameId>1</deviceNameId><productTypeId>1</productTypeId><pipelineId>3</pipelineId><operationTypeId>3</operationTypeId><volume>0</volume><mass>0</mass><temperature>0</temperature><density>0</density><massflowbegin>0</massflowbegin><massflowend>0</massflowend></events> 
-	// 						<events><id>407006</id><datetime>2024-01-11T13:00:00.000+00:00</datetime><operationTypeId>7</operationTypeId><productTypeId>1</productTypeId><deviceTypeId>1</deviceTypeId><deviceNameId>2</deviceNameId><mass>2.792</mass><temperature>0.5976563</temperature><density>742.4</density><volume>3.766</volume><tankLevel>55.875</tankLevel></events> 
-	// 						<events><id>407007</id><datetime>2024-01-11T13:00:00.000+00:00</datetime><deviceTypeId>1</deviceTypeId><deviceNameId>2</deviceNameId><productTypeId>1</productTypeId><operationTypeId>7</operationTypeId><tankLevel>170.4625</tankLevel><mass>13.424</mass><temperature>3</temperature><density>732</density><volume>18.192</volume></events> 
-	// 						<events><id>407003</id><datetime>2024-01-11T13:00:00.000+00:00</datetime><deviceNameId>1</deviceNameId><pipelineId>3</pipelineId><deviceTypeId>2</deviceTypeId><operationTypeId>3</operationTypeId><productTypeId>1</productTypeId><temperature>0</temperature><density>763.0197</density><massflowbegin>1457.847</massflowbegin><massflowend>1457.847</massflowend><mass>0.0001220703</mass><volume>0</volume></events> 
-	// 						<events><id>407008</id><datetime>2024-01-11T13:00:00.000+00:00</datetime><deviceNameId>2</deviceNameId><productTypeId>1</productTypeId><deviceTypeId>1</deviceTypeId><operationTypeId>7</operationTypeId><temperature>6.021851</temperature><density>732</density><volume>77.66721</volume><tankLevel>233.6</tankLevel><mass>54.528</mass></events> 
-	// 						<events><id>407009</id><datetime>2024-01-11T13:00:00.000+00:00</datetime><operationTypeId>7</operationTypeId><deviceTypeId>1</deviceTypeId><deviceNameId>2</deviceNameId><productTypeId>1</productTypeId><temperature>5.786926</temperature><density>758.4</density><volume>95.8464</volume><tankLevel>307.6</tankLevel><mass>72.704</mass></events>
-	// 					</data> 
-	// 				</requestData> 
-	// 			</request> 
-	// 		</ns2:SendMessage>
+			// <ns2:SendMessage xmlns:ns2="http://bip.bee.kz/SyncChannel/v10/Types"> 
+			// 	<request> 
+			// 		<requestInfo> 
+			// 			<messageId>04e0ee99-407a-4b1e-a702-90230f9d7f8f</messageId> 
+			// 			<serviceId>ISUN_Service2</serviceId> 
+			// 			<messageDate>2024-01-18T18:13:25.583+06:00</messageDate> 
+			// 			<sender> <senderId>amangeldygas</senderId> 
+			// 			<password>Amangeldy2023</password> 
+			// 			</sender> 
+			// 		</requestInfo> 
+			// 		<requestData> 
+			// 			<data xmlns:cs="http://message.persistence.interactive.nat" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="cs:Request">
+			// 				<events>
+			// 					<id>407001</id>
+			// 					<datetime>2024-01-11T13:00:00.000+00:00</datetime>
+			// 					<operationTypeId>3</operationTypeId>
+			// 					<productTypeId>1</productTypeId>
+			// 					<pipelineId>3</pipelineId>
+			// 					<deviceTypeId>2</deviceTypeId>
+			// 					<deviceNameId>1</deviceNameId>
+			// 					<density>716.1492</density>
+			// 					<volume>0</volume>
+			// 					<mass>80.46875</mass>
+			// 					<temperature>0</temperature>
+			// 					<massflowbegin>132856.1</massflowbegin>
+			// 					<massflowend>132936.6</massflowend>
+			// 				</events> 
+			// 				<events>
+			// 					<id>407004</id>
+			// 					<datetime>2024-01-11T13:00:00.000+00:00</datetime>
+			// 					<productTypeId>1</productTypeId>
+			// 					<deviceTypeId>1</deviceTypeId>
+			// 					<operationTypeId>7</operationTypeId>
+			// 					<deviceNameId>2</deviceNameId>
+			// 					<temperature>0.669922</temperature>
+			// 					<density>709.065</density>
+			// 					<volume>106.7144</volume>
+			// 					<tankLevel>124.9048</tankLevel>
+			// 					<mass>75.66756</mass>
+			// 				</events> 
+			// 				<events><id>407005</id><datetime>2024-01-11T13:00:00.000+00:00</datetime><deviceTypeId>1</deviceTypeId><operationTypeId>7</operationTypeId><deviceNameId>2</deviceNameId><productTypeId>1</productTypeId><temperature>0.242188</temperature><density>705.322</density><volume>52.64053</volume><tankLevel>61.60059</tankLevel><mass>37.12854</mass></events> 
+			// 				<events><id>407002</id><datetime>2024-01-11T13:00:00.000+00:00</datetime><deviceTypeId>2</deviceTypeId><deviceNameId>1</deviceNameId><productTypeId>1</productTypeId><pipelineId>3</pipelineId><operationTypeId>3</operationTypeId><volume>0</volume><mass>0</mass><temperature>0</temperature><density>0</density><massflowbegin>0</massflowbegin><massflowend>0</massflowend></events> 
+			// 				<events><id>407006</id><datetime>2024-01-11T13:00:00.000+00:00</datetime><operationTypeId>7</operationTypeId><productTypeId>1</productTypeId><deviceTypeId>1</deviceTypeId><deviceNameId>2</deviceNameId><mass>2.792</mass><temperature>0.5976563</temperature><density>742.4</density><volume>3.766</volume><tankLevel>55.875</tankLevel></events> 
+			// 				<events><id>407007</id><datetime>2024-01-11T13:00:00.000+00:00</datetime><deviceTypeId>1</deviceTypeId><deviceNameId>2</deviceNameId><productTypeId>1</productTypeId><operationTypeId>7</operationTypeId><tankLevel>170.4625</tankLevel><mass>13.424</mass><temperature>3</temperature><density>732</density><volume>18.192</volume></events> 
+			// 				<events><id>407003</id><datetime>2024-01-11T13:00:00.000+00:00</datetime><deviceNameId>1</deviceNameId><pipelineId>3</pipelineId><deviceTypeId>2</deviceTypeId><operationTypeId>3</operationTypeId><productTypeId>1</productTypeId><temperature>0</temperature><density>763.0197</density><massflowbegin>1457.847</massflowbegin><massflowend>1457.847</massflowend><mass>0.0001220703</mass><volume>0</volume></events> 
+			// 				<events><id>407008</id><datetime>2024-01-11T13:00:00.000+00:00</datetime><deviceNameId>2</deviceNameId><productTypeId>1</productTypeId><deviceTypeId>1</deviceTypeId><operationTypeId>7</operationTypeId><temperature>6.021851</temperature><density>732</density><volume>77.66721</volume><tankLevel>233.6</tankLevel><mass>54.528</mass></events> 
+			// 				<events><id>407009</id><datetime>2024-01-11T13:00:00.000+00:00</datetime><operationTypeId>7</operationTypeId><deviceTypeId>1</deviceTypeId><deviceNameId>2</deviceNameId><productTypeId>1</productTypeId><temperature>5.786926</temperature><density>758.4</density><volume>95.8464</volume><tankLevel>307.6</tankLevel><mass>72.704</mass></events>
+			// 			</data> 
+			// 		</requestData> 
+			// 	</request> 
+			// </ns2:SendMessage>
+			
+	ifaceEvents := make([]interface{}, 0)
+	ifaceEvents = append(ifaceEvents, events...)
 
 	b := SendMessage{		
 						XMLName: xml.Name{Local: "ns2:SendMessage"},
@@ -442,7 +394,7 @@ func createDocument(event_dt string) (error) {
 									XMLNsCs: "http://message.persistence.interactive.nat",
 									XMLNsXsi: "http://www.w3.org/2001/XMLSchema-instance",
 									XsiType: "cs:Request",
-									Events: events,
+									Events: ifaceEvents,
 								},
 							},
 						},
@@ -457,6 +409,7 @@ func createDocument(event_dt string) (error) {
 	}
 
 	// Print the XML
+	fmt.Print("XMLSendMessage: ")
 	fmt.Println(string(XMLSendMessage))
 
 	// Write the XML to a DB
@@ -472,11 +425,11 @@ func createDocument(event_dt string) (error) {
 	return nil
 }
 // Process data for each device
-func getProccessData(event_date string, objects Devices) ([]Event, error) {
+func getProccessData(event_date string, objects Devices) ([]interface{}, error) {
 
 	fmt.Println("Get event data on: ", event_date)
 
-	var arr []Event
+	var arr []interface{}
 	
 	for _, object := range objects.Settings {
 
@@ -490,11 +443,10 @@ func getProccessData(event_date string, objects Devices) ([]Event, error) {
 		arr = append(arr, data)
 
 	}
-	// fmt.Println("Data of all events:", arr)
 	return arr, nil
 }
 // Get data for each device
-func getEventData(EventDate string, object Device) (Event, error) {
+func getEventData(EventDate string, object Device) (interface{}, error) {
 
 	//get first record with event ID
 	filter := []string{fmt.Sprintf("datetime = '%s'", EventDate)}
@@ -503,17 +455,17 @@ func getEventData(EventDate string, object Device) (Event, error) {
 	data, err := postgresdb.Select(db, DB_NAME, "logger", table, columns, "datetime",  "ASC", 1, filter)
 	if err != nil{
 		fmt.Println("Error when call Select():", err)
-		return Event{}, err
+		return nil, err
 	}
 	if data == nil {
 		fmt.Println("No data for this date")
-		return Event{}, nil
+		return nil, nil
 	}
 
 	fmt.Println(object.OperationTypeID)
-	event := Event{}
+	var event interface{}
 	if object.OperationTypeID == 3 {
-		event = Event{
+		event = EventType1{
 			ID: object.ID,
 			DateTime: EventDate,
 			DeviceTypeID: object.DeviceTypeID,
@@ -531,14 +483,13 @@ func getEventData(EventDate string, object Device) (Event, error) {
 	}
 
 	if object.OperationTypeID == 7 {
-		event = Event{
+		event = EventType2{
 			ID: object.ID,
 			DateTime: EventDate,
 			DeviceTypeID: object.DeviceTypeID,
 			OperationTypeID: object.OperationTypeID,
 			DeviceNameID: object.DeviceNameID,
 			ProductTypeID: object.ProductTypeID,
-			PipelineID: object.PipelineID,
 			Temperature: parseFloat(data["temperature"]),
 			Density: parseFloat(data["density"]),
 			Volume: parseFloat(data["volume"]),
@@ -546,8 +497,7 @@ func getEventData(EventDate string, object Device) (Event, error) {
 			TankLevel: parseFloat(data["tankLevel"])}
 		return event, nil
 	}
-	fmt.Println("Data of the event:", event)
-	return Event{}, nil
+	return nil, nil
 }
 
 //------------------------Send SOAP message
