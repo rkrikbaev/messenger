@@ -1,5 +1,5 @@
-FROM golang:1.20
-
+FROM golang:1.22
+SHELL ["/bin/bash", "-c"]
 # set timezone
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ="Asia/Almaty"
@@ -15,6 +15,9 @@ ARG DEPS=" \
     iputils-ping \
     postgresql-client \
     curl \
+    ca-certificates \
+    bash \
+    dos2unix \
     "
 RUN apt-get update && apt-get install -y ${DEPS}
 
@@ -24,11 +27,22 @@ WORKDIR /app
 RUN mkdir bin
 
 COPY /src/ src
+COPY /sdk/ sdk
 
-COPY ./build.sh /app/build.sh
+ADD ./build.sh /app/build.sh
+ADD ./config.yaml /app/config.yaml
+ADD ./.env /app/.env
+
+# install kalkancryptwr
+RUN dos2unix /app/sdk/production/install_production.sh
+#RUN chmod +x /app/sdk/production/install_production.sh
+RUN source /app/sdk/production/install_production.sh
+RUN cp /app/sdk/libkalkancryptwr-64.so.2.0.3 /usr/lib
+RUN mv /usr/lib/libkalkancryptwr-64.so.2.0.3 /usr/lib/libkalkancryptwr-64.so
 
 # execute build.sh file
+RUN dos2unix /app/build.sh
 RUN chmod +x /app/build.sh
 RUN /app/build.sh
 
-ENTRYPOINT [ "/app/bin/app" ]
+ENTRYPOINT [ "/bin/bash" ]

@@ -3,13 +3,15 @@ version: "3"
 services:
   messenger:
     restart: always
-    image: rkrikbaev/messenger:v1.0.0
+    image: rkrikbaev/messenger:v1.0.11
     container_name: messenger
     stdin_open: true
     tty: true
     volumes:
       - ../xml_data:/app/xml_data
-    command: "./app"
+      - ./config.yaml:/app/config.yaml
+      - ./.env:/app/.env
+    command: "./bin/app"
     depends_on:
       - database
     environment:
