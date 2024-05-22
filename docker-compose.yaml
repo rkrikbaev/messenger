@@ -11,7 +11,8 @@ services:
       - ../xml_data:/app/xml_data
       - ./config.yaml:/app/config.yaml
       - ./.env:/app/.env
-    command: "./bin/app"
+    entrypoint: ["./bin/app"]
+    # command: "./bin/app"
     depends_on:
       - database
     environment:
