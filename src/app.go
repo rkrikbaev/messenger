@@ -545,9 +545,9 @@ func SendDoc(xmlstring, eventDate string) (error) {
 	}
 
 	// update state
-	columns := []string{"state", "sent"}
+	columns := []string{"state", "sent_dt"}
 	values := []string{state, time.Now().Format(EventTimeFormat)}
-	filter := fmt.Sprintf("event_dt = '%s'", eventDate)
+	filter := fmt.Sprintf("date = '%s'", eventDate)
 
 	err = postgresdb.Update(db, DB_NAME, "messenger", recordsTable, columns, values, filter, state)
 	if err != nil {
