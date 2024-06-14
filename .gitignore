@@ -13,3 +13,4 @@ samples/
 *.xml
 vendor
 src/__app.go
+ui/

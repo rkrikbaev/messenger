@@ -27,7 +27,7 @@ go mod tidy
 
 # go build -o /app/bin/app app.go
 echo "Build start"
-go build -o /app/bin/app app.go
+go build -mod=readonly -o /app/bin/app app.go
 if [ $? -eq 0 ]; then
     # mv /app/src/app /app/bin/app
     sleep 5

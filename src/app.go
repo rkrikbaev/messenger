@@ -267,11 +267,11 @@ func processEvent() {
 	if date1.Hour() > hour {
 		
 		// get last recordset with state STDBY
-		record, _ := postgresdb.Select(db, DB_NAME, "messenger", recordsTable, []string{"event_dt", "document"}, "event_dt", "DESC", 1, []string{"state='STDBY'"})
+		record, _ := postgresdb.Select(db, DB_NAME, "messenger", recordsTable, []string{"date", "document"}, "date", "DESC", 1, []string{"state='STDBY'"})
 
 		// send all available XML documents after 17:00
 		if len(record) > 0 {
-			err := SendDoc(record["document"], record["event_dt"])
+			err := SendDoc(record["document"], record["date"])
 			if err != nil {
 				fmt.Println("Error when call SendMessage():", err)
 			}
@@ -413,7 +413,7 @@ func createDocument(event_dt string) (error) {
 	fmt.Println(string(XMLSendMessage))
 
 	// Write the XML to a DB
-	columns := []string{"document", "event_dt", "created_dt", "state"}
+	columns := []string{"document", "date", "created", "state"}
 	values := []string{ string(XMLSendMessage), event_dt, time.Now().Format(EventTimeFormat), "STDBY" }
 
 	err = postgresdb.Insert(db, DB_NAME, "messenger", recordsTable, columns, values)
@@ -545,7 +545,7 @@ func SendDoc(xmlstring, eventDate string) (error) {
 	}
 
 	// update state
-	columns := []string{"state", "sent_dt"}
+	columns := []string{"state", "sent"}
 	values := []string{state, time.Now().Format(EventTimeFormat)}
 	filter := fmt.Sprintf("date = '%s'", eventDate)
 
